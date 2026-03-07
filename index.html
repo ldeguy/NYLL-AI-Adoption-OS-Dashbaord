@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NYLL AI Adoption OS — Program Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F8FAFC; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const ANTHROPIC_API_KEY = "__ANTHROPIC_API_KEY__";
+const NOTION_TOKEN = "__NOTION_TOKEN__";
+
+const COLORS = {
+  blue:"#2563EB", lightBlue:"#EFF6FF", borderBlue:"#BFDBFE",
+  green:"#16A34A", lightGreen:"#F0FDF4", borderGreen:"#BBF7D0",
+  orange:"#EA580C", lightOrange:"#FFF7ED", borderOrange:"#FED7AA",
+  yellow:"#CA8A04", lightYellow:"#FEFCE8", borderYellow:"#FEF08A",
+  purple:"#7C3AED", lightPurple:"#F5F3FF", borderPurple:"#DDD6FE",
+  red:"#DC2626", lightRed:"#FEF2F2", borderRed:"#FECACA",
+  gray:"#6B7280", lightGray:"#F9FAFB", borderGray:"#E5E7EB",
+  dark:"#111827", mid:"#374151", light:"#9CA3AF",
+};
+
+const NOTION_SOURCES = {
+  frictions: "collection://f1013161-eb83-46ee-ad68-d0b57004dd5c",
+  habits:    "collection://453b9146-7b38-4739-8125-3b25a0d71147",
+  aiTasks:   "collection://b9d30e8e-1100-47dd-83ea-8be5a3cc22d1",
+  values:    "collection://efe09cad-7173-4c53-84f5-314513e4173f",
+};
+
+async function fetchNotionData(sourceKey, query) {
+  const src = NOTION_SOURCES[sourceKey];
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4000,
+      system: "You are a Notion data fetcher. Fetch all entries from the given Notion data source and return ONLY a valid JSON array. No markdown, no explanation, no code fences.",
+      messages: [{ role: "user", content: `Fetch all entries from Notion data source: ${src}. Search query: "${query}". Return ONLY a JSON array.` }],
+      mcp_servers: [{ type: "url", url: "https://mcp.notion.com/mcp", name: "notion-mcp",
+        authorization_token: NOTION_TOKEN }],
+    })
+  });
+  const data = await res.json();
+  const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("") || "[]";
+  try {
+    const clean = text.replace(/```json|```/g,"").trim();
+    const start = clean.indexOf("["), end = clean.lastIndexOf("]");
+    if (start === -1) return [];
+    return JSON.parse(clean.slice(start, end+1));
+  } catch { return []; }
+}
+
+function nf(obj, ...keys) {
+  for (const k of keys) {
+    const v = obj[k] ?? obj[k.toLowerCase()] ?? obj[k.toUpperCase()];
+    if (v !== undefined && v !== null && v !== "") return v;
+  }
+  return null;
+}
+
+const parseFrictions = raw => raw.map((r,i) => ({
+  id: nf(r,"Waste ID","waste_id") || `WST-0${i+1}`,
+  title: nf(r,"Title","title","name") || "Untitled",
+  area: nf(r,"Execution Area","execution_area") || "—",
+  severity: nf(r,"Severity","severity") || "Medium",
+  impact: nf(r,"Impact Hypothesis Type","impact_hypothesis_type") || "—",
+  status: nf(r,"Status","status") || "Observed",
+  symptom: nf(r,"Observable Symptom","observable_symptom") || "",
+}));
+
+const parseHabits = raw => raw.map((r,i) => ({
+  id: nf(r,"PDCA ID","pdca_id") || `PDC-0${i+1}`,
+  title: nf(r,"Title","title","name") || "Untitled",
+  old: nf(r,"Old Habit","old_habit") || "—",
+  new: nf(r,"New Habit","new_habit") || "—",
+  cycle: nf(r,"Cycle / Iteration","cycle_iteration","cycle") || "—",
+  result: nf(r,"Result","result") || "Pending",
+  decision: nf(r,"Decision","decision") || "Pending",
+  owner: nf(r,"Owner","owner") || "—",
+}));
+
+const parseAITasks = raw => raw.map((r,i) => ({
+  id: nf(r,"Task ID","task_id") || `AIT-0${i+1}`,
+  title: nf(r,"Task Name","task_name","Title","title") || "Untitled",
+  capability: nf(r,"AI Capability Type","ai_capability_type") || "—",
+  freq: nf(r,"Frequency / Recurrence","frequency_recurrence","frequency") || "Ad hoc",
+  original: nf(r,"Original Work (As-Is)","original_work") || "—",
+  contribution: nf(r,"AI Contribution","ai_contribution") || "—",
+  humanRole: nf(r,"Human Role After AI","human_role_after_ai") || "—",
+}));
+
+const parseValues = raw => raw.map((r,i) => {
+  const fe = parseFloat(nf(r,"Financial Efficiency","financial_efficiency")||0);
+  const es = parseFloat(nf(r,"Execution Speed","execution_speed")||0);
+  const rg = parseFloat(nf(r,"Risk & Governance","risk_governance")||0);
+  const ha = parseFloat(nf(r,"Human & Adoption Impact","human_adoption_impact")||0);
+  const dims = [fe,es,rg,ha].filter(v=>v>0);
+  const niu = dims.length ? Math.round((dims.reduce((a,b)=>a+b,0)/dims.length)*10)/10 : 0;
+  return {
+    id: nf(r,"Value ID","value_id") || `VAL-0${i+1}`,
+    title: nf(r,"Title","title","name") || "Untitled",
+    area: nf(r,"Execution Area","execution_area") || "—",
+    type: nf(r,"Value Type","value_type") || "—",
+    estimate: nf(r,"Conservative Estimate","conservative_estimate") || "—",
+    niu, confidence: nf(r,"Confidence Level","confidence_level") || "—",
+    sponsor: nf(r,"Sponsor Validation Status","sponsor_validation_status") || "Pending",
+    fe, es, rg, ha,
+  };
+});
+
+const Badge = ({text,color,bg,border}) => (
+  <span style={{background:bg||"#F3F4F6",color:color||COLORS.gray,border:`1px solid ${border||"#E5E7EB"}`,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{text}</span>
+);
+const sevBadge = s => s==="High"?<Badge text="High" color={COLORS.red} bg={COLORS.lightRed} border={COLORS.borderRed}/>:s==="Medium"?<Badge text="Medium" color={COLORS.yellow} bg={COLORS.lightYellow} border={COLORS.borderYellow}/>:<Badge text="Low" color={COLORS.green} bg={COLORS.lightGreen} border={COLORS.borderGreen}/>;
+const stsBadge = s => {const m={Observed:{c:COLORS.yellow,bg:COLORS.lightYellow,b:COLORS.borderYellow},Addressed:{c:COLORS.blue,bg:COLORS.lightBlue,b:COLORS.borderBlue},Resolved:{c:COLORS.green,bg:COLORS.lightGreen,b:COLORS.borderGreen},Monitoring:{c:COLORS.purple,bg:COLORS.lightPurple,b:COLORS.borderPurple}}[s]||{c:COLORS.gray,bg:COLORS.lightGray,b:COLORS.borderGray};return <Badge text={s} color={m.c} bg={m.bg} border={m.b}/>;};
+const resBadge = r => r==="Observed"?<Badge text="✓ Observed" color={COLORS.green} bg={COLORS.lightGreen} border={COLORS.borderGreen}/>:r==="Partial"?<Badge text="~ Partial" color={COLORS.orange} bg={COLORS.lightOrange} border={COLORS.borderOrange}/>:<Badge text="Pending" color={COLORS.gray} bg={COLORS.lightGray} border={COLORS.borderGray}/>;
+const frqBadge = f => f==="Weekly"?<Badge text="Weekly" color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/>:f==="Daily"?<Badge text="Daily" color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>:<Badge text="Ad hoc" color={COLORS.gray} bg={COLORS.lightGray} border={COLORS.borderGray}/>;
+const NIU_LABEL = s => s>=8?{label:"Maximum signal",color:COLORS.blue}:s>=6?{label:"Anchored value",color:COLORS.green}:s>=4?{label:"Building value",color:COLORS.orange}:{label:"Emerging value",color:COLORS.yellow};
+
+const NIUBar = ({score}) => {
+  const {color} = NIU_LABEL(score);
+  return <div style={{display:"flex",alignItems:"center",gap:8}}>
+    <div style={{flex:1,height:6,background:"#E5E7EB",borderRadius:3,overflow:"hidden"}}>
+      <div style={{width:`${(score/8)*100}%`,height:"100%",background:color,borderRadius:3}}/>
+    </div>
+    <span style={{fontSize:12,fontWeight:700,color,minWidth:28}}>{score}/8</span>
+  </div>;
+};
+
+const Card = ({children,style}) => <div style={{background:"#fff",border:`1px solid ${COLORS.borderGray}`,borderRadius:10,padding:20,...style}}>{children}</div>;
+const SectionHeader = ({emoji,step,title,subtitle}) => <div style={{marginBottom:20}}>
+  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+    <span style={{fontSize:20}}>{emoji}</span>
+    <span style={{fontSize:11,fontWeight:700,color:COLORS.light,letterSpacing:1,textTransform:"uppercase"}}>Step {step}</span>
+  </div>
+  <h2 style={{margin:0,fontSize:18,fontWeight:700,color:COLORS.dark}}>{title}</h2>
+  {subtitle && <p style={{margin:"4px 0 0",fontSize:13,color:COLORS.gray}}>{subtitle}</p>}
+</div>;
+
+const STEPS = ["Pulse","Frictions","Habits","AI Tasks","Value","Pipeline"];
+
+function Dashboard() {
+  const [active, setActive] = React.useState("Pulse");
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+
+  const loadData = React.useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const [rawF,rawH,rawA,rawV] = await Promise.all([
+        fetchNotionData("frictions","friction waste heatmap"),
+        fetchNotionData("habits","PDCA habits cycles"),
+        fetchNotionData("aiTasks","AI enabled tasks"),
+        fetchNotionData("values","value ROI NIU"),
+      ]);
+      setData({ frictions:parseFrictions(rawF), habits:parseHabits(rawH), aiTasks:parseAITasks(rawA), values:parseValues(rawV) });
+    } catch(e) { setError(e.message||"Unknown error"); }
+    finally { setLoading(false); }
+  }, []);
+
+  React.useEffect(() => { loadData(); }, [loadData]);
+
+  const navBtn = label => <button key={label} onClick={()=>setActive(label)} style={{padding:"8px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:active===label?COLORS.blue:"transparent",color:active===label?"#fff":COLORS.gray}}>{label}</button>;
+
+  const Header = () => <div>
+    <div style={{background:"#fff",borderBottom:`1px solid ${COLORS.borderGray}`,padding:"16px 28px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div>
+        <div style={{fontSize:11,fontWeight:700,color:COLORS.blue,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>NYLL · AI Adoption OS</div>
+        <h1 style={{margin:0,fontSize:20,fontWeight:800,color:COLORS.dark}}>Program Dashboard — Tato Value Realization</h1>
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <Badge text={loading?"⟳ Syncing…":"● Live"} color={loading?COLORS.orange:COLORS.green} bg={loading?COLORS.lightOrange:COLORS.lightGreen} border={loading?COLORS.borderOrange:COLORS.borderGreen}/>
+        <button onClick={loadData} disabled={loading} style={{background:COLORS.lightBlue,color:COLORS.blue,border:`1px solid ${COLORS.borderBlue}`,borderRadius:6,padding:"6px 12px",cursor:loading?"not-allowed":"pointer",fontWeight:600,fontSize:12}}>↺ Refresh</button>
+      </div>
+    </div>
+    <div style={{background:"#fff",borderBottom:`1px solid ${COLORS.borderGray}`,padding:"6px 24px",display:"flex",gap:4}}>{STEPS.map(navBtn)}</div>
+  </div>;
+
+  if (loading && !data) return <div><Header/><div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60,gap:16}}><div style={{width:36,height:36,border:`3px solid ${COLORS.borderBlue}`,borderTop:`3px solid ${COLORS.blue}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><div style={{color:COLORS.gray,fontSize:13}}>Fetching live data from Notion…</div></div></div>;
+  if (error && !data) return <div><Header/><div style={{padding:28}}><Card style={{borderLeft:`4px solid ${COLORS.red}`,background:COLORS.lightRed}}><div style={{color:COLORS.red,fontWeight:600,marginBottom:6}}>Unable to load data</div><div style={{color:COLORS.mid,fontSize:13,marginBottom:12}}>{error}</div><button onClick={loadData} style={{background:COLORS.red,color:"#fff",border:"none",borderRadius:6,padding:"8px 16px",cursor:"pointer",fontWeight:600,fontSize:13}}>Retry</button></Card></div></div>;
+
+  const {frictions,habits,aiTasks,values} = data;
+  const anchored = habits.filter(h=>h.decision==="Keep"&&h.result==="Observed");
+  const recurring = aiTasks.filter(a=>a.freq==="Weekly"||a.freq==="Daily");
+  const resolved = frictions.filter(f=>f.status==="Addressed"||f.status==="Resolved");
+  const validated = values.filter(v=>v.sponsor==="Validated");
+  const avgNIU = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):"—";
+
+  return <div>
+    <Header/>
+    <div style={{padding:"28px",maxWidth:1100,margin:"0 auto"}}>
+
+      {active==="Pulse" && <div>
+        <SectionHeader emoji="📊" step="0" title="Program Pulse" subtitle="Snapshot of the value creation chain — live from Notion."/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
+          {[{label:"Frictions identified",value:frictions.length,sub:`${resolved.length} resolved`,color:COLORS.orange},{label:"Habits anchored",value:anchored.length,sub:`of ${habits.length} PDCA cycles`,color:COLORS.green},{label:"AI Tasks recurring",value:recurring.length,sub:"Daily or Weekly",color:COLORS.blue},{label:"NIU avg",value:avgNIU+"/8",sub:`${validated.length} validated · ${values.length} total`,color:COLORS.purple}].map(kpi=>
+            <Card key={kpi.label} style={{borderTop:`3px solid ${kpi.color}`}}>
+              <div style={{fontSize:32,fontWeight:800,color:kpi.color,lineHeight:1}}>{kpi.value}</div>
+              <div style={{fontSize:13,fontWeight:600,color:COLORS.dark,marginTop:6}}>{kpi.label}</div>
+              <div style={{fontSize:12,color:COLORS.light,marginTop:2}}>{kpi.sub}</div>
+            </Card>
+          )}
+        </div>
+        <Card>
+          <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:16,textTransform:"uppercase",letterSpacing:0.5}}>Value Chain — Program Progress</div>
+          <div style={{display:"flex",alignItems:"stretch",gap:0}}>
+            {[{label:"Frictions",count:frictions.length,done:resolved.length,color:COLORS.orange,bg:"#FFF7ED",emoji:"🔥"},{label:"Habits",count:habits.length,done:anchored.length,color:COLORS.green,bg:"#F0FDF4",emoji:"🔁"},{label:"AI Tasks",count:aiTasks.length,done:recurring.length,color:COLORS.blue,bg:"#EFF6FF",emoji:"🤖"},{label:"Value",count:values.length,done:validated.length||values.length,color:COLORS.purple,bg:"#F5F3FF",emoji:"💰"}].map((s,i)=>
+              <div key={s.label} style={{display:"flex",alignItems:"center",flex:1}}>
+                <div style={{flex:1,background:s.bg,border:`1px solid ${s.color}44`,borderRadius:8,padding:"14px 16px",textAlign:"center"}}>
+                  <div style={{fontSize:22}}>{s.emoji}</div>
+                  <div style={{fontSize:22,fontWeight:800,color:s.color}}>{s.done}</div>
+                  <div style={{fontSize:11,color:s.color,fontWeight:600}}>{s.label}</div>
+                  <div style={{fontSize:11,color:COLORS.light,marginTop:2}}>of {s.count} total</div>
+                  <div style={{marginTop:8,height:4,background:"#E5E7EB",borderRadius:2,overflow:"hidden"}}>
+                    <div style={{width:`${s.count?Math.round((s.done/s.count)*100):0}%`,height:"100%",background:s.color,borderRadius:2}}/>
+                  </div>
+                </div>
+                {i<3&&<div style={{color:COLORS.light,fontSize:20,padding:"0 6px"}}>→</div>}
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>}
+
+      {active==="Frictions" && <div>
+        <SectionHeader emoji="🔥" step="1" title="Frictions resolved by AI" subtitle="Execution irritants observed on the ground, addressed through Tato."/>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {[...frictions].sort((a,b)=>["High","Medium","Low"].indexOf(a.severity)-["High","Medium","Low"].indexOf(b.severity)).map(f=>
+            <Card key={f.id} style={{display:"flex",alignItems:"center",gap:16,padding:"14px 20px"}}>
+              <span style={{fontSize:11,color:COLORS.light,fontWeight:600,minWidth:52}}>{f.id}</span>
+              <div style={{flex:1}}><div style={{fontWeight:700,color:COLORS.dark,fontSize:14}}>{f.title}</div>{f.symptom&&<div style={{fontSize:12,color:COLORS.gray,marginTop:2}}>{f.symptom}</div>}</div>
+              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
+                <Badge text={f.area} color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/>
+                {f.impact&&<Badge text={f.impact} color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>}
+                {sevBadge(f.severity)}{stsBadge(f.status)}
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>}
+
+      {active==="Habits" && <div>
+        <SectionHeader emoji="🔁" step="2" title="Habits anchored" subtitle="What the team actually does differently today because of Tato."/>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {habits.map(h=>
+            <Card key={h.id}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:11,color:COLORS.light,fontWeight:600}}>{h.id}</span><span style={{fontWeight:700,color:COLORS.dark,fontSize:14}}>{h.title}</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:10,fontSize:13}}>
+                    <div style={{flex:1,background:COLORS.lightRed,border:`1px solid ${COLORS.borderRed}`,borderRadius:6,padding:"8px 12px"}}><div style={{fontSize:10,fontWeight:700,color:COLORS.red,textTransform:"uppercase",marginBottom:3}}>Before</div><div style={{color:COLORS.mid}}>{h.old}</div></div>
+                    <span style={{color:COLORS.light,fontSize:18}}>→</span>
+                    <div style={{flex:1,background:COLORS.lightGreen,border:`1px solid ${COLORS.borderGreen}`,borderRadius:6,padding:"8px 12px"}}><div style={{fontSize:10,fontWeight:700,color:COLORS.green,textTransform:"uppercase",marginBottom:3}}>After</div><div style={{color:COLORS.mid}}>{h.new}</div></div>
+                  </div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",minWidth:130}}>
+                  {resBadge(h.result)}
+                  <Badge text={h.decision==="Keep"?"✓ Keep":h.decision} color={h.decision==="Keep"?COLORS.green:h.decision==="Adjust"?COLORS.orange:COLORS.gray} bg={h.decision==="Keep"?COLORS.lightGreen:h.decision==="Adjust"?COLORS.lightOrange:COLORS.lightGray} border={h.decision==="Keep"?COLORS.borderGreen:h.decision==="Adjust"?COLORS.borderOrange:COLORS.borderGray}/>
+                  <Badge text={h.cycle} color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/>
+                  <Badge text={h.owner} color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>}
+
+      {active==="AI Tasks" && <div>
+        <SectionHeader emoji="🤖" step="3" title="AI Tasks in regular use" subtitle="How work has changed — tasks where Tato is embedded in recurring execution."/>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {aiTasks.map(t=>
+            <Card key={t.id}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:11,color:COLORS.light,fontWeight:600}}>{t.id}</span><span style={{fontWeight:700,color:COLORS.dark,fontSize:14}}>{t.title}</span>{frqBadge(t.freq)}{t.capability&&<Badge text={t.capability} color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,fontSize:12}}>
+                {[{label:"Before AI",val:t.original,c:COLORS.gray,bg:COLORS.lightGray},{label:"AI contribution",val:t.contribution,c:COLORS.blue,bg:COLORS.lightBlue},{label:"Human role after AI",val:t.humanRole,c:COLORS.green,bg:COLORS.lightGreen}].map(col=>
+                  <div key={col.label} style={{background:col.bg,borderRadius:6,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:col.c,textTransform:"uppercase",marginBottom:4}}>{col.label}</div><div style={{color:COLORS.mid}}>{col.val}</div></div>
+                )}
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>}
+
+      {active==="Value" && <div>
+        <SectionHeader emoji="💰" step="4" title="Value created" subtitle="NIU Score (1–8): normalized average across relevant dimensions."/>
+        <Card style={{marginBottom:20,padding:"14px 20px"}}>
+          <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
+            {[{r:"1–3",l:"Emerging value",c:COLORS.yellow},{r:"4–5",l:"Building value",c:COLORS.orange},{r:"6–7",l:"Anchored value",c:COLORS.green},{r:"8",l:"Maximum signal",c:COLORS.blue}].map(n=>
+              <div key={n.r} style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:"50%",background:n.c}}/><span style={{fontSize:12,color:COLORS.dark}}><strong style={{color:n.c}}>{n.r}</strong> — {n.l}</span></div>
+            )}
+          </div>
+        </Card>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {[...values].sort((a,b)=>b.niu-a.niu).map(v=>{
+            const {color,label}=NIU_LABEL(v.niu);
+            return <Card key={v.id}>
+              <div style={{display:"flex",alignItems:"center",gap:16}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                    <span style={{fontSize:11,color:COLORS.light,fontWeight:600}}>{v.id}</span>
+                    <span style={{fontWeight:700,color:COLORS.dark,fontSize:14}}>{v.title}</span>
+                    <Badge text={v.type} color={v.type==="Time"?COLORS.blue:v.type==="Quality"?COLORS.green:COLORS.red} bg={v.type==="Time"?COLORS.lightBlue:v.type==="Quality"?COLORS.lightGreen:COLORS.lightRed} border={COLORS.borderGray}/>
+                    <Badge text={v.area} color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>
+                  </div>
+                  <div style={{fontSize:13,color:COLORS.gray,marginBottom:10}}>Estimate: <strong style={{color:COLORS.dark}}>{v.estimate}</strong></div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {[{l:"Financial",val:v.fe},{l:"Speed",val:v.es},{l:"Risk",val:v.rg},{l:"Human",val:v.ha}].filter(d=>d.val>0).map(d=>
+                      <div key={d.l} style={{fontSize:11,color:COLORS.gray,background:COLORS.lightGray,borderRadius:4,padding:"3px 8px"}}>{d.l}: <strong style={{color:COLORS.dark}}>{d.val}</strong></div>
+                    )}
+                  </div>
+                </div>
+                <div style={{minWidth:160}}>
+                  <div style={{fontSize:11,fontWeight:700,color:COLORS.light,textTransform:"uppercase",marginBottom:6}}>NIU Score</div>
+                  <NIUBar score={v.niu}/>
+                  <div style={{fontSize:12,color,fontWeight:600,marginTop:4}}>{label}</div>
+                  <div style={{marginTop:8}}><Badge text={`Confidence: ${v.confidence}`} color={v.confidence==="High"?COLORS.green:v.confidence==="Medium"?COLORS.yellow:COLORS.red} bg={v.confidence==="High"?COLORS.lightGreen:v.confidence==="Medium"?COLORS.lightYellow:COLORS.lightRed} border={COLORS.borderGray}/></div>
+                </div>
+              </div>
+            </Card>;
+          })}
+        </div>
+      </div>}
+
+      {active==="Pipeline" && <div>
+        <SectionHeader emoji="🔮" step="5" title="Value pipeline" subtitle="What the program is about to produce."/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Value pending validation</div>
+            {values.filter(v=>v.sponsor!=="Validated").map(v=>
+              <Card key={v.id} style={{marginBottom:10}}>
+                <div style={{fontWeight:700,color:COLORS.dark,fontSize:13,marginBottom:6}}>{v.title}</div>
+                <div style={{fontSize:12,color:COLORS.gray,marginBottom:8}}>{v.estimate}</div>
+                <NIUBar score={v.niu}/>
+                <div style={{marginTop:6,display:"flex",gap:6}}>
+                  <Badge text={v.type} color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/>
+                  <Badge text={`Confidence: ${v.confidence}`} color={v.confidence==="High"?COLORS.green:v.confidence==="Medium"?COLORS.yellow:COLORS.red} bg={v.confidence==="High"?COLORS.lightGreen:v.confidence==="Medium"?COLORS.lightYellow:COLORS.lightRed} border={COLORS.borderGray}/>
+                </div>
+              </Card>
+            )}
+          </div>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>PDCA experiments in progress</div>
+            {habits.filter(h=>h.result==="Pending"||h.result==="Partial").map(h=>
+              <Card key={h.id} style={{marginBottom:10}}>
+                <div style={{fontWeight:700,color:COLORS.dark,fontSize:13,marginBottom:6}}>{h.title}</div>
+                <div style={{display:"flex",gap:6,marginBottom:8}}>{resBadge(h.result)}<Badge text={h.cycle} color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/><Badge text={h.owner} color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/></div>
+                <div style={{fontSize:12,color:COLORS.gray}}><span style={{color:COLORS.light}}>Before: </span>{h.old} → <strong style={{color:COLORS.green}}>{h.new}</strong></div>
+              </Card>
+            )}
+          </div>
+        </div>
+      </div>}
+
+    </div>
+  </div>;
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<Dashboard/>);
+</script>
+</body>
+</html>
