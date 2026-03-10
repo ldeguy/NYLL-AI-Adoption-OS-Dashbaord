@@ -28,18 +28,11 @@ const COLORS = {
   dark:"#111827", mid:"#374151", light:"#9CA3AF",
 };
 
-const NOTION_SOURCES = {
-  frictions: "collection://f1013161-eb83-46ee-ad68-d0b57004dd5c",
-  habits:    "collection://453b9146-7b38-4739-8125-3b25a0d71147",
-  aiTasks:   "collection://b9d30e8e-1100-47dd-83ea-8be5a3cc22d1",
-  values:    "collection://efe09cad-7173-4c53-84f5-314513e4173f",
-};
-
-async function fetchNotionData(sourceKey, query) {
+async function fetchNotionData(sourceKey) {
   const res = await fetch("/api/data", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ source: sourceKey, query }),
+    body: JSON.stringify({ source: sourceKey }),
   });
   const json = await res.json();
   if (!json.data) throw new Error(json.error || "No data returned");
@@ -75,6 +68,20 @@ const parseHabits = raw => raw.map((r,i) => ({
   owner: nf(r,"Owner","owner") || "—",
 }));
 
+// Extract the highest cycle number from text values like "Cycle 1", "Cycle 2", "3", etc.
+function maxCycleNumber(habits) {
+  let max = 0;
+  for (const h of habits) {
+    const raw = h.cycle || "";
+    const match = raw.match(/\d+/);
+    if (match) {
+      const n = parseInt(match[0], 10);
+      if (n > max) max = n;
+    }
+  }
+  return max;
+}
+
 const parseAITasks = raw => raw.map((r,i) => ({
   id: nf(r,"Task ID","task_id") || `AIT-0${i+1}`,
   title: nf(r,"Task Name","task_name","Title","title") || "Untitled",
@@ -109,7 +116,12 @@ const Badge = ({text,color,bg,border}) => (
 );
 const sevBadge = s => s==="High"?<Badge text="High" color={COLORS.red} bg={COLORS.lightRed} border={COLORS.borderRed}/>:s==="Medium"?<Badge text="Medium" color={COLORS.yellow} bg={COLORS.lightYellow} border={COLORS.borderYellow}/>:<Badge text="Low" color={COLORS.green} bg={COLORS.lightGreen} border={COLORS.borderGreen}/>;
 const stsBadge = s => {const m={Observed:{c:COLORS.yellow,bg:COLORS.lightYellow,b:COLORS.borderYellow},Addressed:{c:COLORS.blue,bg:COLORS.lightBlue,b:COLORS.borderBlue},Resolved:{c:COLORS.green,bg:COLORS.lightGreen,b:COLORS.borderGreen},Monitoring:{c:COLORS.purple,bg:COLORS.lightPurple,b:COLORS.borderPurple}}[s]||{c:COLORS.gray,bg:COLORS.lightGray,b:COLORS.borderGray};return <Badge text={s} color={m.c} bg={m.bg} border={m.b}/>;};
-const resBadge = r => r==="Observed"?<Badge text="✓ Observed" color={COLORS.green} bg={COLORS.lightGreen} border={COLORS.borderGreen}/>:r==="Partial"?<Badge text="~ Partial" color={COLORS.orange} bg={COLORS.lightOrange} border={COLORS.borderOrange}/>:<Badge text="Pending" color={COLORS.gray} bg={COLORS.lightGray} border={COLORS.borderGray}/>;
+const resBadge = r => {
+  if (r==="Observed") return <Badge text="✓ Observed" color={COLORS.green} bg={COLORS.lightGreen} border={COLORS.borderGreen}/>;
+  if (r==="Partial") return <Badge text="~ Partial" color={COLORS.orange} bg={COLORS.lightOrange} border={COLORS.borderOrange}/>;
+  if (r==="Not observed") return <Badge text="✗ Not observed" color={COLORS.red} bg={COLORS.lightRed} border={COLORS.borderRed}/>;
+  return <Badge text="Pending" color={COLORS.gray} bg={COLORS.lightGray} border={COLORS.borderGray}/>;
+};
 const frqBadge = f => f==="Weekly"?<Badge text="Weekly" color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/>:f==="Daily"?<Badge text="Daily" color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>:<Badge text="Ad hoc" color={COLORS.gray} bg={COLORS.lightGray} border={COLORS.borderGray}/>;
 const NIU_LABEL = s => s>=8?{label:"Maximum signal",color:COLORS.blue}:s>=6?{label:"Anchored value",color:COLORS.green}:s>=4?{label:"Building value",color:COLORS.orange}:{label:"Emerging value",color:COLORS.yellow};
 
@@ -145,10 +157,10 @@ function Dashboard() {
     setLoading(true); setError(null);
     try {
       const [rawF,rawH,rawA,rawV] = await Promise.all([
-        fetchNotionData("frictions","friction waste heatmap"),
-        fetchNotionData("habits","PDCA habits cycles"),
-        fetchNotionData("aiTasks","AI enabled tasks"),
-        fetchNotionData("values","value ROI NIU"),
+        fetchNotionData("frictions"),
+        fetchNotionData("habits"),
+        fetchNotionData("aiTasks"),
+        fetchNotionData("values"),
       ]);
       setData({ frictions:parseFrictions(rawF), habits:parseHabits(rawH), aiTasks:parseAITasks(rawA), values:parseValues(rawV) });
     } catch(e) { setError(e.message||"Unknown error"); }
@@ -163,7 +175,8 @@ function Dashboard() {
     <div style={{background:"#fff",borderBottom:`1px solid ${COLORS.borderGray}`,padding:"16px 28px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div>
         <div style={{fontSize:11,fontWeight:700,color:COLORS.blue,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>NYLL · AI Adoption OS</div>
-        <h1 style={{margin:0,fontSize:20,fontWeight:800,color:COLORS.dark}}>Program Dashboard — Tato Value Realization</h1>
+        {/* CORRECTION 1 — titre mis à jour */}
+        <h1 style={{margin:0,fontSize:20,fontWeight:800,color:COLORS.dark}}>Program Dashboard — AI Adoption OS</h1>
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <Badge text={loading?"⟳ Syncing…":"● Live"} color={loading?COLORS.orange:COLORS.green} bg={loading?COLORS.lightOrange:COLORS.lightGreen} border={loading?COLORS.borderOrange:COLORS.borderGreen}/>
@@ -177,9 +190,14 @@ function Dashboard() {
   if (error && !data) return <div><Header/><div style={{padding:28}}><Card style={{borderLeft:`4px solid ${COLORS.red}`,background:COLORS.lightRed}}><div style={{color:COLORS.red,fontWeight:600,marginBottom:6}}>Unable to load data</div><div style={{color:COLORS.mid,fontSize:13,marginBottom:12}}>{error}</div><button onClick={loadData} style={{background:COLORS.red,color:"#fff",border:"none",borderRadius:6,padding:"8px 16px",cursor:"pointer",fontWeight:600,fontSize:13}}>Retry</button></Card></div></div>;
 
   const {frictions,habits,aiTasks,values} = data;
+
+  // CORRECTION 3b — "anchored" = Decision:Keep + Result:Observed
   const anchored = habits.filter(h=>h.decision==="Keep"&&h.result==="Observed");
+  // CORRECTION 3a — max cycle number extracted from text field
+  const maxCycle = maxCycleNumber(habits);
   const recurring = aiTasks.filter(a=>a.freq==="Weekly"||a.freq==="Daily");
-  const resolved = frictions.filter(f=>f.status==="Addressed"||f.status==="Resolved");
+  // CORRECTION 2 — only count truly Resolved (not Addressed)
+  const resolved = frictions.filter(f=>f.status==="Resolved");
   const validated = values.filter(v=>v.sponsor==="Validated");
   const avgNIU = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):"—";
 
@@ -190,7 +208,13 @@ function Dashboard() {
       {active==="Pulse" && <div>
         <SectionHeader emoji="📊" step="0" title="Program Pulse" subtitle="Snapshot of the value creation chain — live from Notion."/>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
-          {[{label:"Frictions identified",value:frictions.length,sub:`${resolved.length} resolved`,color:COLORS.orange},{label:"Habits anchored",value:anchored.length,sub:`of ${habits.length} PDCA cycles`,color:COLORS.green},{label:"AI Tasks recurring",value:recurring.length,sub:"Daily or Weekly",color:COLORS.blue},{label:"NIU avg",value:avgNIU+"/8",sub:`${validated.length} validated · ${values.length} total`,color:COLORS.purple}].map(kpi=>
+          {[
+            {label:"Frictions identified",value:frictions.length,sub:`${resolved.length} resolved`,color:COLORS.orange},
+            // CORRECTION 3a+3b — label + légende + maxCycle
+            {label:"Habits anchored",value:anchored.length,sub:`of cycle ${maxCycle} · Decision: Keep + Result: Observed`,color:COLORS.green},
+            {label:"AI Tasks recurring",value:recurring.length,sub:"Daily or Weekly",color:COLORS.blue},
+            {label:"NIU avg",value:avgNIU+"/8",sub:`${validated.length} validated · ${values.length} total`,color:COLORS.purple},
+          ].map(kpi=>
             <Card key={kpi.label} style={{borderTop:`3px solid ${kpi.color}`}}>
               <div style={{fontSize:32,fontWeight:800,color:kpi.color,lineHeight:1}}>{kpi.value}</div>
               <div style={{fontSize:13,fontWeight:600,color:COLORS.dark,marginTop:6}}>{kpi.label}</div>
