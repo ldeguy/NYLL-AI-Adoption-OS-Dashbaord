@@ -233,9 +233,7 @@ function Dashboard() {
   const chainRows = validatedValues.map(v => {
     const vId = normId(v._id);
     const linkedAITasks = aiTasks.filter(a=>a.relatedValue.has(vId));
-    // For each AI task linked to this value, find habits linked to it
     const linkedHabits = habits.filter(h=>linkedAITasks.some(a=>h.relatedAITask.has(normId(a._id))));
-    // For each habit, find frictions linked to it
     const linkedFrictions = frictions.filter(f=>linkedHabits.some(h=>f.relatedPDCA.has(normId(h._id))));
     return { value:v, aiTasks:linkedAITasks, habits:linkedHabits, frictions:linkedFrictions };
   });
@@ -248,9 +246,9 @@ function Dashboard() {
         <SectionHeader emoji="📊" step="0" title="Program Pulse" subtitle="Snapshot of the value creation chain — live from Notion."/>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
           {[
-            {label:"Frictions identified", value:frictions.length,    sub:"all entries",                                    color:COLORS.orange},
-            {label:"Habits active",        value:habitsActive.length, sub:"Decision: Keep or Adjust",                       color:COLORS.green},
-            {label:"AI Tasks identified",  value:aiTasks.length,      sub:"all entries",                                    color:COLORS.blue},
+            {label:"Frictions identified", value:frictions.length,    sub:"all entries",                                           color:COLORS.orange},
+            {label:"Habits active",        value:habitsActive.length, sub:"Decision: Keep or Adjust",                              color:COLORS.green},
+            {label:"AI Tasks identified",  value:aiTasks.length,      sub:"all entries",                                           color:COLORS.blue},
             {label:"NIU avg",              value:avgNIU+"/8",         sub:`${validated.length} validated · ${values.length} total`, color:COLORS.purple},
           ].map(kpi=>
             <Card key={kpi.label} style={{borderTop:`3px solid ${kpi.color}`}}>
@@ -262,16 +260,20 @@ function Dashboard() {
         </div>
         <Card>
           <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Value Chain — Validated Value Paths</div>
-          <div style={{fontSize:11,color:COLORS.light,marginBottom:16}}>One row per Validated Value — traced back to originating Frictions</div>
+          <div style={{fontSize:11,color:COLORS.light,marginBottom:12}}>One row per Validated Value — traced back to originating Frictions</div>
 
-          {/* Column headers */}
+          <div style={{display:"flex",gap:24,flexWrap:"wrap",marginBottom:16,padding:"10px 14px",background:COLORS.lightGray,borderRadius:6,border:`1px solid ${COLORS.borderGray}`}}>
+            {[{r:"1–3",l:"Emerging value",c:COLORS.yellow},{r:"4–5",l:"Building value",c:COLORS.orange},{r:"6–7",l:"Anchored value",c:COLORS.green},{r:"8",l:"Maximum signal",c:COLORS.blue}].map(n=>
+              <div key={n.r} style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:"50%",background:n.c}}/><span style={{fontSize:12,color:COLORS.dark}}><strong style={{color:n.c}}>{n.r}</strong> — {n.l}</span></div>
+            )}
+          </div>
+
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.4fr",gap:8,marginBottom:8,padding:"0 4px"}}>
             {[{e:"🔥",l:"Friction",c:COLORS.orange},{e:"🔁",l:"Habit",c:COLORS.green},{e:"🤖",l:"AI Task",c:COLORS.blue},{e:"💰",l:"Value + NIU",c:COLORS.purple}].map(col=>
               <div key={col.l} style={{fontSize:11,fontWeight:700,color:col.c,textTransform:"uppercase",letterSpacing:0.5}}>{col.e} {col.l}</div>
             )}
           </div>
 
-          {/* Chain rows */}
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {chainRows.map((row,i)=>{
               const {color} = NIU_LABEL(row.value.niu);
