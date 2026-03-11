@@ -72,6 +72,7 @@ const parseFrictions = raw => raw.map((r,i) => ({
   status: nf(r,"Status","status") || "Observed",
   symptom: nf(r,"Observable Symptom","observable_symptom") || "",
   relatedPDCA: parseRelIds(nf(r,"Related PDCA(s)")),
+  wasteType: nf(r,"Waste Type","waste_type") || "—",
 }));
 
 const parseHabits = raw => raw.map((r,i) => ({
@@ -431,11 +432,10 @@ function Dashboard() {
       {/* FRICTIONS — HEATMAP */}
       {active==="Frictions" && (()=>{
         const AREA_COLS = [
-          { key:"Meetings",     color:"#2563EB", bg:"#EFF6FF", border:"#BFDBFE" },
-          { key:"Planning",     color:"#16A34A", bg:"#F0FDF4", border:"#BBF7D0" },
-          { key:"Scope",        color:"#CA8A04", bg:"#FEFCE8", border:"#FEF08A" },
-          { key:"Coordination", color:"#7C3AED", bg:"#F5F3FF", border:"#DDD6FE" },
-          { key:"Governance",   color:"#EA580C", bg:"#FFF7ED", border:"#FED7AA" },
+          { key:"Overhead",   color:"#2563EB", bg:"#EFF6FF", border:"#BFDBFE" },
+          { key:"Idle Time",  color:"#7C3AED", bg:"#F5F3FF", border:"#DDD6FE" },
+          { key:"Rework",     color:"#DC2626", bg:"#FEF2F2", border:"#FECACA" },
+          { key:"Scope Creep",color:"#CA8A04", bg:"#FEFCE8", border:"#FEF08A" },
         ];
         const SEV_ROWS = ["High","Medium","Low"];
         const SEV_STYLE = {
@@ -480,7 +480,7 @@ function Dashboard() {
           <Card>
             <div style={{overflowX:"auto"}}>
               {/* Column headers */}
-              <div style={{display:"grid",gridTemplateColumns:"72px repeat(5,1fr)",gap:8,marginBottom:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"72px repeat(4,1fr)",gap:8,marginBottom:8}}>
                 <div/>
                 {AREA_COLS.map(col=>(
                   <div key={col.key} style={{textAlign:"center",padding:"6px 8px",borderRadius:6,background:col.bg,border:`1px solid ${col.border}`}}>
@@ -500,7 +500,7 @@ function Dashboard() {
                       <span style={{fontSize:11,fontWeight:700,color:s.color,writingMode:"vertical-rl",transform:"rotate(180deg)",letterSpacing:0.5}}>{sev}</span>
                     </div>
                     {AREA_COLS.map((col,ci)=>{
-                      const cards=rowFrictions.filter(f=>f.area===col.key);
+                      const cards=rowFrictions.filter(f=>f.wasteType===col.key);
                       return (
                         <div key={col.key} style={{background:cards.length?col.bg:"#F9FAFB",border:`1px dashed ${cards.length?col.border:COLORS.borderGray}`,borderRadius:8,padding:cards.length?8:0,minHeight:60,display:"flex",flexDirection:"column",gap:8}}>
                           {cards.length===0
