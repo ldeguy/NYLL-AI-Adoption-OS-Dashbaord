@@ -204,7 +204,12 @@ function Dashboard() {
 
   const {frictions,habits,aiTasks,values} = data;
 
-  const habitsActive = habits.filter(h=>h.decision==="Keep"||h.decision==="Adjust");
+  // CORRECTION 3b — "anchored" = Decision:Keep + Result:Observed
+  const anchored = habits.filter(h=>h.decision==="Keep"&&h.result==="Observed");
+  // CORRECTION 3a — max cycle number extracted from text field
+  const maxCycle = maxCycleNumber(habits);
+  const recurring = aiTasks.filter(a=>a.freq==="Weekly"||a.freq==="Daily");
+  // CORRECTION 2 — only count truly Resolved (not Addressed)
   const resolved = frictions.filter(f=>f.status==="Resolved");
   const validated = values.filter(v=>v.sponsor==="Validated");
   const avgNIU = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):"—";
