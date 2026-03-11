@@ -28,6 +28,10 @@ const COLORS = {
   dark:"#111827", mid:"#374151", light:"#9CA3AF",
 };
 
+const PIE_COLORS = ["#2563EB","#16A34A","#EA580C","#7C3AED"];
+const DIM_LABELS = ["Financial Efficiency","Execution Speed","Risk & Governance","Human & Adoption Impact"];
+const DIM_KEYS   = ["fe","es","rg","ha"];
+
 async function fetchNotionData(sourceKey) {
   const res = await fetch("/api/data", {
     method: "POST",
@@ -47,28 +51,16 @@ function nf(obj, ...keys) {
   return null;
 }
 
-// Parse a relation field (comma-separated Notion page IDs) into a Set
-// Handles both raw IDs and full Notion URLs (extracts last path segment, strips dashes)
 function parseRelIds(val) {
   if (!val) return new Set();
-  return new Set(
-    val.split(",").map(s => {
-      s = s.trim();
-      // If it looks like a URL, extract the last path segment
-      if (s.includes("notion.so/")) {
-        const parts = s.split("/");
-        s = parts[parts.length - 1].split("?")[0];
-      }
-      // Normalize: remove dashes
-      return s.replace(/-/g,"");
-    }).filter(Boolean)
-  );
+  return new Set(val.split(",").map(s => {
+    s = s.trim();
+    if (s.includes("notion.so/")) { const p = s.split("/"); s = p[p.length-1].split("?")[0]; }
+    return s.replace(/-/g,"");
+  }).filter(Boolean));
 }
 
-// Normalize a Notion page _id (remove dashes) for consistent lookup
-function normId(id) {
-  return (id||"").replace(/-/g,"");
-}
+function normId(id) { return (id||"").replace(/-/g,""); }
 
 const parseFrictions = raw => raw.map((r,i) => ({
   _id: r._id || `frc-${i}`,
@@ -94,15 +86,6 @@ const parseHabits = raw => raw.map((r,i) => ({
   owner: nf(r,"Owner","owner") || "—",
   relatedAITask: parseRelIds(nf(r,"Related AI-Enabled Task")),
 }));
-
-function maxCycleNumber(habits) {
-  let max = 0;
-  for (const h of habits) {
-    const match = (h.cycle||"").match(/\d+/);
-    if (match) { const n = parseInt(match[0],10); if (n>max) max=n; }
-  }
-  return max;
-}
 
 const parseAITasks = raw => raw.map((r,i) => ({
   _id: r._id || `ait-${i}`,
@@ -136,6 +119,49 @@ const parseValues = raw => raw.map((r,i) => {
   };
 });
 
+// ── Pie Chart (SVG, no lib) ──
+function PieChart({ data }) {
+  // data: [{label, value, color}]
+  const total = data.reduce((s,d)=>s+d.value,0);
+  if (!total) return <div style={{color:COLORS.light,fontSize:13,textAlign:"center",padding:20}}>No validated value data for chart.</div>;
+
+  const size = 160;
+  const cx = size/2, cy = size/2, r = 64, ir = 36;
+  let angle = -Math.PI/2;
+  const slices = data.map(d => {
+    const sweep = (d.value/total)*2*Math.PI;
+    const x1 = cx + r*Math.cos(angle), y1 = cy + r*Math.sin(angle);
+    angle += sweep;
+    const x2 = cx + r*Math.cos(angle), y2 = cy + r*Math.sin(angle);
+    const ix1 = cx + ir*Math.cos(angle-sweep), iy1 = cy + ir*Math.sin(angle-sweep);
+    const ix2 = cx + ir*Math.cos(angle), iy2 = cy + ir*Math.sin(angle);
+    const large = sweep > Math.PI ? 1 : 0;
+    return { ...d, path:`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`, pct: Math.round((d.value/total)*100) };
+  });
+
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:28,flexWrap:"wrap"}}>
+      <div style={{position:"relative",flexShrink:0}}>
+        <svg width={size} height={size}>
+          {slices.map((s,i) => <path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth={2}/>)}
+          <text x={cx} y={cy-6} textAnchor="middle" fontSize={13} fontWeight={700} fill={COLORS.dark}>{total.toFixed(1)}</text>
+          <text x={cx} y={cy+10} textAnchor="middle" fontSize={9} fill={COLORS.light}>NIU Total</text>
+        </svg>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:8,flex:1,minWidth:200}}>
+        {slices.map((s,i) => (
+          <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:10,height:10,borderRadius:"50%",background:s.color,flexShrink:0}}/>
+            <div style={{flex:1,fontSize:12,color:COLORS.mid}}>{s.label}</div>
+            <div style={{fontSize:12,fontWeight:700,color:s.color,minWidth:32,textAlign:"right"}}>{s.value.toFixed(1)}</div>
+            <div style={{fontSize:11,color:COLORS.light,minWidth:34,textAlign:"right"}}>{s.pct}%</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const Badge = ({text,color,bg,border}) => (
   <span style={{background:bg||"#F3F4F6",color:color||COLORS.gray,border:`1px solid ${border||"#E5E7EB"}`,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{text}</span>
 );
@@ -161,16 +187,23 @@ const NIUBar = ({score}) => {
 };
 
 const Card = ({children,style}) => <div style={{background:"#fff",border:`1px solid ${COLORS.borderGray}`,borderRadius:10,padding:20,...style}}>{children}</div>;
-const SectionHeader = ({emoji,step,title,subtitle}) => <div style={{marginBottom:20}}>
+
+const SectionHeader = ({emoji,title,subtitle}) => <div style={{marginBottom:20}}>
   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-    <span style={{fontSize:20}}>{emoji}</span>
-    <span style={{fontSize:11,fontWeight:700,color:COLORS.light,letterSpacing:1,textTransform:"uppercase"}}>Step {step}</span>
+    <span style={{fontSize:22}}>{emoji}</span>
+    <h2 style={{margin:0,fontSize:18,fontWeight:700,color:COLORS.dark}}>{title}</h2>
   </div>
-  <h2 style={{margin:0,fontSize:18,fontWeight:700,color:COLORS.dark}}>{title}</h2>
   {subtitle && <p style={{margin:"4px 0 0",fontSize:13,color:COLORS.gray}}>{subtitle}</p>}
 </div>;
 
-const STEPS = ["Pulse","Frictions","Habits","AI Tasks","Value","Pipeline"];
+const NAV = [
+  {key:"Pulse",   label:"📊 Program Pulse"},
+  {key:"Frictions",label:"🔥 Frictions"},
+  {key:"Habits",  label:"🔁 Habits"},
+  {key:"AI Tasks",label:"🤖 AI Tasks"},
+  {key:"Value",   label:"💰 Value"},
+  {key:"Pipeline",label:"🔮 Pipeline"},
+];
 
 function Dashboard() {
   const [active, setActive] = React.useState("Pulse");
@@ -194,7 +227,7 @@ function Dashboard() {
 
   React.useEffect(() => { loadData(); }, [loadData]);
 
-  const navBtn = label => <button key={label} onClick={()=>setActive(label)} style={{padding:"8px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:active===label?COLORS.blue:"transparent",color:active===label?"#fff":COLORS.gray}}>{label}</button>;
+  const navBtn = ({key,label}) => <button key={key} onClick={()=>setActive(key)} style={{padding:"8px 14px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:active===key?COLORS.blue:"transparent",color:active===key?"#fff":COLORS.gray,whiteSpace:"nowrap"}}>{label}</button>;
 
   const Header = () => <div>
     <div style={{background:"#fff",borderBottom:`1px solid ${COLORS.borderGray}`,padding:"16px 28px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -207,7 +240,7 @@ function Dashboard() {
         <button onClick={loadData} disabled={loading} style={{background:COLORS.lightBlue,color:COLORS.blue,border:`1px solid ${COLORS.borderBlue}`,borderRadius:6,padding:"6px 12px",cursor:loading?"not-allowed":"pointer",fontWeight:600,fontSize:12}}>↺ Refresh</button>
       </div>
     </div>
-    <div style={{background:"#fff",borderBottom:`1px solid ${COLORS.borderGray}`,padding:"6px 24px",display:"flex",gap:4}}>{STEPS.map(navBtn)}</div>
+    <div style={{background:"#fff",borderBottom:`1px solid ${COLORS.borderGray}`,padding:"6px 24px",display:"flex",gap:4,overflowX:"auto"}}>{NAV.map(navBtn)}</div>
   </div>;
 
   if (loading && !data) return <div><Header/><div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60,gap:16}}><div style={{width:36,height:36,border:`3px solid ${COLORS.borderBlue}`,borderTop:`3px solid ${COLORS.blue}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><div style={{color:COLORS.gray,fontSize:13}}>Fetching live data from Notion…</div></div></div>;
@@ -215,25 +248,28 @@ function Dashboard() {
 
   const {frictions,habits,aiTasks,values} = data;
 
-  // ── KPI Cards ──
+  // KPIs
   const habitsActive = habits.filter(h=>h.decision==="Keep"||h.decision==="Adjust");
   const validated    = values.filter(v=>v.sponsor==="Validated");
   const avgNIU       = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):"—";
 
-  // ── Value Chain — propagation de droite à gauche depuis les Values validées ──
-  const validatedValues    = values.filter(v=>v.sponsor==="Validated");
-  const validatedValueIds  = new Set(validatedValues.map(v=>normId(v._id)));
+  // NIU Pie Chart data — validated values only, sum per dimension
+  const dimTotals = DIM_KEYS.map((k,i) => {
+    const total = validated.reduce((s,v) => s + (v[k]||0), 0);
+    return { label: DIM_LABELS[i], value: total, color: PIE_COLORS[i] };
+  }).filter(d => d.value > 0);
+
+  // Value chain
+  const validatedValueIds  = new Set(validated.map(v=>normId(v._id)));
   const aiTasksValidated   = aiTasks.filter(a=>[...a.relatedValue].some(id=>validatedValueIds.has(id)));
   const aiTaskValidatedIds = new Set(aiTasksValidated.map(a=>normId(a._id)));
   const habitsValidated    = habits.filter(h=>[...h.relatedAITask].some(id=>aiTaskValidatedIds.has(id)));
   const habitValidatedIds  = new Set(habitsValidated.map(h=>normId(h._id)));
-  const frictionsValidated = frictions.filter(f=>[...f.relatedPDCA].some(id=>habitValidatedIds.has(id)));
 
-  // Build chain rows: one per validated Value
-  const chainRows = validatedValues.map(v => {
+  const chainRows = validated.map(v => {
     const vId = normId(v._id);
     const linkedAITasks = aiTasks.filter(a=>a.relatedValue.has(vId));
-    const linkedHabits = habits.filter(h=>linkedAITasks.some(a=>h.relatedAITask.has(normId(a._id))));
+    const linkedHabits  = habits.filter(h=>linkedAITasks.some(a=>h.relatedAITask.has(normId(a._id))));
     const linkedFrictions = frictions.filter(f=>linkedHabits.some(h=>f.relatedPDCA.has(normId(h._id))));
     return { value:v, aiTasks:linkedAITasks, habits:linkedHabits, frictions:linkedFrictions };
   });
@@ -242,8 +278,9 @@ function Dashboard() {
     <Header/>
     <div style={{padding:"28px",maxWidth:1100,margin:"0 auto"}}>
 
+      {/* PULSE */}
       {active==="Pulse" && <div>
-        <SectionHeader emoji="📊" step="0" title="Program Pulse" subtitle="Snapshot of the value creation chain — live from Notion."/>
+        <SectionHeader emoji="📊" title="Program Pulse" subtitle="Snapshot of the value creation chain — live from Notion."/>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
           {[
             {label:"Frictions identified", value:frictions.length,    sub:"all entries",                                           color:COLORS.orange},
@@ -258,32 +295,35 @@ function Dashboard() {
             </Card>
           )}
         </div>
+
+        {/* NIU Pie Chart */}
+        <Card style={{marginBottom:20}}>
+          <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>NIU Breakdown — Validated Values</div>
+          <div style={{fontSize:11,color:COLORS.light,marginBottom:16}}>Sum of each NIU dimension across entries where Sponsor Validation Status = Validated</div>
+          <PieChart data={dimTotals}/>
+        </Card>
+
+        {/* Value Chain */}
         <Card>
           <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Value Chain — Validated Value Paths</div>
           <div style={{fontSize:11,color:COLORS.light,marginBottom:12}}>One row per Validated Value — traced back to originating Frictions</div>
-
           <div style={{display:"flex",gap:24,flexWrap:"wrap",marginBottom:16,padding:"10px 14px",background:COLORS.lightGray,borderRadius:6,border:`1px solid ${COLORS.borderGray}`}}>
             {[{r:"1–3",l:"Emerging value",c:COLORS.yellow},{r:"4–5",l:"Building value",c:COLORS.orange},{r:"6–7",l:"Anchored value",c:COLORS.green},{r:"8",l:"Maximum signal",c:COLORS.blue}].map(n=>
               <div key={n.r} style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:"50%",background:n.c}}/><span style={{fontSize:12,color:COLORS.dark}}><strong style={{color:n.c}}>{n.r}</strong> — {n.l}</span></div>
             )}
           </div>
-
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.4fr",gap:8,marginBottom:8,padding:"0 4px"}}>
             {[{e:"🔥",l:"Friction",c:COLORS.orange},{e:"🔁",l:"Habit",c:COLORS.green},{e:"🤖",l:"AI Task",c:COLORS.blue},{e:"💰",l:"Value + NIU",c:COLORS.purple}].map(col=>
               <div key={col.l} style={{fontSize:11,fontWeight:700,color:col.c,textTransform:"uppercase",letterSpacing:0.5}}>{col.e} {col.l}</div>
             )}
           </div>
-
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {chainRows.map((row,i)=>{
               const {color} = NIU_LABEL(row.value.niu);
-              const fTitle = row.frictions.length ? row.frictions.map(f=>f.title).join(", ") : "—";
-              const hTitle = row.habits.length    ? row.habits.map(h=>h.title).join(", ")    : "—";
-              const aTitle = row.aiTasks.length   ? row.aiTasks.map(a=>a.title).join(", ")   : "—";
               return <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.4fr",gap:8,padding:"10px 12px",background:i%2===0?"#F8FAFC":"#fff",borderRadius:6,border:`1px solid ${COLORS.borderGray}`,alignItems:"center"}}>
-                <div style={{fontSize:12,color:COLORS.mid}}>{fTitle}</div>
-                <div style={{fontSize:12,color:COLORS.mid}}>{hTitle}</div>
-                <div style={{fontSize:12,color:COLORS.mid}}>{aTitle}</div>
+                <div style={{fontSize:12,color:COLORS.mid}}>{row.frictions.length?row.frictions.map(f=>f.title).join(", "):"—"}</div>
+                <div style={{fontSize:12,color:COLORS.mid}}>{row.habits.length?row.habits.map(h=>h.title).join(", "):"—"}</div>
+                <div style={{fontSize:12,color:COLORS.mid}}>{row.aiTasks.length?row.aiTasks.map(a=>a.title).join(", "):"—"}</div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:12,fontWeight:700,color:COLORS.dark,marginBottom:4}}>{row.value.title}</div>
@@ -297,8 +337,9 @@ function Dashboard() {
         </Card>
       </div>}
 
+      {/* FRICTIONS */}
       {active==="Frictions" && <div>
-        <SectionHeader emoji="🔥" step="1" title="Frictions resolved by AI" subtitle="Execution irritants observed on the ground, addressed through Tato."/>
+        <SectionHeader emoji="🔥" title="Frictions resolved by AI" subtitle="Execution irritants observed on the ground, addressed through Tato."/>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {[...frictions].sort((a,b)=>["High","Medium","Low"].indexOf(a.severity)-["High","Medium","Low"].indexOf(b.severity)).map(f=>
             <Card key={f.id} style={{display:"flex",alignItems:"center",gap:16,padding:"14px 20px"}}>
@@ -314,8 +355,9 @@ function Dashboard() {
         </div>
       </div>}
 
+      {/* HABITS */}
       {active==="Habits" && <div>
-        <SectionHeader emoji="🔁" step="2" title="Habits anchored" subtitle="What the team actually does differently today because of Tato."/>
+        <SectionHeader emoji="🔁" title="Habits anchored" subtitle="What the team actually does differently today because of Tato."/>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {habits.map(h=>
             <Card key={h.id}>
@@ -340,8 +382,9 @@ function Dashboard() {
         </div>
       </div>}
 
+      {/* AI TASKS */}
       {active==="AI Tasks" && <div>
-        <SectionHeader emoji="🤖" step="3" title="AI Tasks in regular use" subtitle="How work has changed — tasks where Tato is embedded in recurring execution."/>
+        <SectionHeader emoji="🤖" title="AI Tasks in regular use" subtitle="How work has changed — tasks where Tato is embedded in recurring execution."/>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {aiTasks.map(t=>
             <Card key={t.id}>
@@ -356,8 +399,9 @@ function Dashboard() {
         </div>
       </div>}
 
+      {/* VALUE */}
       {active==="Value" && <div>
-        <SectionHeader emoji="💰" step="4" title="Value created" subtitle="NIU Score (1–8): normalized average across relevant dimensions."/>
+        <SectionHeader emoji="💰" title="Value created" subtitle="NIU Score (1–8): normalized average across relevant dimensions."/>
         <Card style={{marginBottom:20,padding:"14px 20px"}}>
           <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
             {[{r:"1–3",l:"Emerging value",c:COLORS.yellow},{r:"4–5",l:"Building value",c:COLORS.orange},{r:"6–7",l:"Anchored value",c:COLORS.green},{r:"8",l:"Maximum signal",c:COLORS.blue}].map(n=>
@@ -379,7 +423,12 @@ function Dashboard() {
                   </div>
                   <div style={{fontSize:13,color:COLORS.gray,marginBottom:10}}>Estimate: <strong style={{color:COLORS.dark}}>{v.estimate}</strong></div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                    {[{l:"Financial",val:v.fe},{l:"Speed",val:v.es},{l:"Risk",val:v.rg},{l:"Human",val:v.ha}].filter(d=>d.val>0).map(d=>
+                    {[
+                      {l:"Financial Efficiency", val:v.fe},
+                      {l:"Execution Speed",      val:v.es},
+                      {l:"Risk & Governance",    val:v.rg},
+                      {l:"Human & Adoption Impact", val:v.ha},
+                    ].filter(d=>d.val>0).map(d=>
                       <div key={d.l} style={{fontSize:11,color:COLORS.gray,background:COLORS.lightGray,borderRadius:4,padding:"3px 8px"}}>{d.l}: <strong style={{color:COLORS.dark}}>{d.val}</strong></div>
                     )}
                   </div>
@@ -396,8 +445,9 @@ function Dashboard() {
         </div>
       </div>}
 
+      {/* PIPELINE */}
       {active==="Pipeline" && <div>
-        <SectionHeader emoji="🔮" step="5" title="Value pipeline" subtitle="What the program is about to produce."/>
+        <SectionHeader emoji="🔮" title="Value pipeline" subtitle="What the program is about to produce."/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Value pending validation</div>
