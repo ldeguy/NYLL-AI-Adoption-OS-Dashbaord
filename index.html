@@ -122,7 +122,7 @@ const parseValues = raw => raw.map((r,i) => {
 // ── Pie Chart ──
 function PieChart({ data }) {
   const total = data.reduce((s,d)=>s+d.value,0);
-  if (!total) return <div style={{color:COLORS.light,fontSize:13,textAlign:"center",padding:20}}>No validated value data for chart.</div>;
+  if (!total) return <div style={{color:COLORS.light,fontSize:13,textAlign:"center",padding:20}}>No data for chart.</div>;
   const size=160, cx=size/2, cy=size/2, r=64, ir=36;
   let angle=-Math.PI/2;
   const slices = data.map(d => {
@@ -142,7 +142,7 @@ function PieChart({ data }) {
         <text x={cx} y={cy-6} textAnchor="middle" fontSize={13} fontWeight={700} fill={COLORS.dark}>{total.toFixed(1)}</text>
         <text x={cx} y={cy+10} textAnchor="middle" fontSize={9} fill={COLORS.light}>NIU Total</text>
       </svg>
-      <div style={{display:"flex",flexDirection:"column",gap:8,flex:1,minWidth:200}}>
+      <div style={{display:"flex",flexDirection:"column",gap:8,flex:1,minWidth:160}}>
         {slices.map((s,i)=>(
           <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{width:10,height:10,borderRadius:"50%",background:s.color,flexShrink:0}}/>
@@ -191,26 +191,24 @@ const SectionHeader = ({emoji,title,subtitle}) => <div style={{marginBottom:20}}
   {subtitle&&<p style={{margin:"4px 0 0",fontSize:13,color:COLORS.gray}}>{subtitle}</p>}
 </div>;
 
-// ── Sponsor badge ──
 const sponsorBadge = s => {
   const m = {
-    "Validated":     {c:COLORS.green,  bg:COLORS.lightGreen,  b:COLORS.borderGreen},
-    "In Review":     {c:COLORS.blue,   bg:COLORS.lightBlue,   b:COLORS.borderBlue},
-    "On Hold":       {c:COLORS.red,    bg:COLORS.lightRed,    b:COLORS.borderRed},
-    "Needs revision":{c:COLORS.orange, bg:COLORS.lightOrange, b:COLORS.borderOrange},
+    "Validated":      {c:COLORS.green,  bg:COLORS.lightGreen,  b:COLORS.borderGreen},
+    "In Review":      {c:COLORS.blue,   bg:COLORS.lightBlue,   b:COLORS.borderBlue},
+    "On Hold":        {c:COLORS.red,    bg:COLORS.lightRed,    b:COLORS.borderRed},
+    "Needs revision": {c:COLORS.orange, bg:COLORS.lightOrange, b:COLORS.borderOrange},
   }[s] || {c:COLORS.gray, bg:COLORS.lightGray, b:COLORS.borderGray};
   return <Badge text={s} color={m.c} bg={m.bg} border={m.b}/>;
 };
 
-// ── Heatmap columns / rows ──
+// ── Heatmap ──
 const NIU_COLS = [
-  { label:"Emerging",  range:"1–2", min:0,   max:2.99 },
-  { label:"Building",  range:"3–4", min:3,   max:4.99 },
-  { label:"Anchored",  range:"5–6", min:5,   max:6.99 },
-  { label:"Maximum",   range:"7–8", min:7,   max:8    },
+  { label:"Emerging", range:"1–2", min:0,  max:2.99 },
+  { label:"Building", range:"3–4", min:3,  max:4.99 },
+  { label:"Anchored", range:"5–6", min:5,  max:6.99 },
+  { label:"Maximum",  range:"7–8", min:7,  max:8    },
 ];
 const CONF_ROWS = ["High","Medium","Low"];
-
 const COL_STYLE = [
   { hdr:{color:"#A16207",bg:"#FEF9C3",border:"#FDE047"}, cell:"#FFFDE7" },
   { hdr:{color:"#C2410C",bg:"#FFEDD5",border:"#FDBA74"}, cell:"#FFF3E0" },
@@ -218,34 +216,19 @@ const COL_STYLE = [
   { hdr:{color:"#1D4ED8",bg:"#DBEAFE",border:"#93C5FD"}, cell:"#EFF6FF" },
 ];
 
-// ── Value Heatmap card ──
 function ValueCard({ v }) {
   const band = NIU_BAND(v.niu);
   return (
-    <div style={{
-      background:"#fff",
-      border:`1.5px solid ${band.border}`,
-      borderRadius:8,
-      padding:"10px 12px",
-      display:"flex",
-      flexDirection:"column",
-      gap:6,
-      boxShadow:"0 1px 3px rgba(0,0,0,0.06)",
-      minWidth:0,
-    }}>
-      {/* Top row: ID + sponsor */}
+    <div style={{background:"#fff",border:`1.5px solid ${band.border}`,borderRadius:8,padding:"10px 12px",display:"flex",flexDirection:"column",gap:6,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",minWidth:0}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4}}>
         <span style={{fontSize:10,fontWeight:700,color:COLORS.light,letterSpacing:0.5}}>{v.id}</span>
         {sponsorBadge(v.sponsor)}
       </div>
-      {/* Title */}
       <div style={{fontSize:12,fontWeight:700,color:COLORS.dark,lineHeight:1.3}}>{v.title}</div>
-      {/* Area + Type */}
       <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
         <Badge text={v.area} color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>
         {v.type!=="—"&&<Badge text={v.type} color={v.type==="Time"?COLORS.blue:v.type==="Quality"?COLORS.green:COLORS.orange} bg={v.type==="Time"?COLORS.lightBlue:v.type==="Quality"?COLORS.lightGreen:COLORS.lightOrange} border={COLORS.borderGray}/>}
       </div>
-      {/* NIU bar + score */}
       <div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
           <span style={{fontSize:10,color:COLORS.light,fontWeight:600,textTransform:"uppercase",letterSpacing:0.3}}>NIU</span>
@@ -253,67 +236,38 @@ function ValueCard({ v }) {
         </div>
         <NIUBar score={v.niu}/>
       </div>
-      {/* Estimate */}
       <div style={{fontSize:11,color:COLORS.gray,marginTop:2}}>{v.estimate}</div>
     </div>
   );
 }
 
-// ── Value Heatmap grid ──
 function ValueHeatmap({ values }) {
   return (
     <div style={{overflowX:"auto"}}>
-      {/* Column headers */}
       <div style={{display:"grid",gridTemplateColumns:"80px repeat(4,1fr)",gap:8,marginBottom:8,paddingLeft:4}}>
         <div/>
         {NIU_COLS.map((col,i)=>(
-          <div key={col.label} style={{
-            textAlign:"center",padding:"6px 8px",borderRadius:6,
-            background:COL_STYLE[i].hdr.bg,
-            border:`1px solid ${COL_STYLE[i].hdr.border}`,
-          }}>
+          <div key={col.label} style={{textAlign:"center",padding:"6px 8px",borderRadius:6,background:COL_STYLE[i].hdr.bg,border:`1px solid ${COL_STYLE[i].hdr.border}`}}>
             <div style={{fontSize:12,fontWeight:700,color:COL_STYLE[i].hdr.color}}>{col.label}</div>
             <div style={{fontSize:10,color:COL_STYLE[i].hdr.color,opacity:0.7}}>NIU {col.range}</div>
           </div>
         ))}
       </div>
-
-      {/* Rows by Confidence */}
       {CONF_ROWS.map(conf=>{
-        const rowValues = values.filter(v=>v.confidence===conf);
-        const hasAny = NIU_COLS.some(col=>rowValues.some(v=>v.niu>=col.min&&v.niu<=col.max));
-        if(!hasAny && rowValues.length===0) return null;
+        const rowValues=values.filter(v=>v.confidence===conf);
+        if(rowValues.length===0) return null;
         return (
           <div key={conf} style={{display:"grid",gridTemplateColumns:"80px repeat(4,1fr)",gap:8,marginBottom:8,alignItems:"start"}}>
-            {/* Row label */}
-            <div style={{
-              display:"flex",alignItems:"center",justifyContent:"center",
-              padding:"8px 4px",borderRadius:6,
-              background:conf==="High"?COLORS.lightGreen:conf==="Medium"?COLORS.lightYellow:COLORS.lightRed,
-              border:`1px solid ${conf==="High"?COLORS.borderGreen:conf==="Medium"?COLORS.borderYellow:COLORS.borderRed}`,
-              minHeight:60,
-            }}>
-              <span style={{
-                fontSize:11,fontWeight:700,
-                color:conf==="High"?COLORS.green:conf==="Medium"?COLORS.yellow:COLORS.red,
-                writingMode:"vertical-rl",transform:"rotate(180deg)",letterSpacing:0.5,
-              }}>{conf} confidence</span>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"8px 4px",borderRadius:6,background:conf==="High"?COLORS.lightGreen:conf==="Medium"?COLORS.lightYellow:COLORS.lightRed,border:`1px solid ${conf==="High"?COLORS.borderGreen:conf==="Medium"?COLORS.borderYellow:COLORS.borderRed}`,minHeight:60}}>
+              <span style={{fontSize:11,fontWeight:700,color:conf==="High"?COLORS.green:conf==="Medium"?COLORS.yellow:COLORS.red,writingMode:"vertical-rl",transform:"rotate(180deg)",letterSpacing:0.5}}>{conf} confidence</span>
             </div>
-            {/* Cells */}
             {NIU_COLS.map((col,ci)=>{
-              const cards = rowValues.filter(v=>v.niu>=col.min&&v.niu<=col.max);
+              const cards=rowValues.filter(v=>v.niu>=col.min&&v.niu<=col.max);
               return (
-                <div key={col.label} style={{
-                  background:cards.length?COL_STYLE[ci].cell:"#F9FAFB",
-                  border:`1px dashed ${cards.length?COL_STYLE[ci].hdr.border:COLORS.borderGray}`,
-                  borderRadius:8,
-                  padding:cards.length?8:0,
-                  minHeight:60,
-                  display:"flex",flexDirection:"column",gap:8,
-                }}>
+                <div key={col.label} style={{background:cards.length?COL_STYLE[ci].cell:"#F9FAFB",border:`1px dashed ${cards.length?COL_STYLE[ci].hdr.border:COLORS.borderGray}`,borderRadius:8,padding:cards.length?8:0,minHeight:60,display:"flex",flexDirection:"column",gap:8}}>
                   {cards.length===0
-                    ? <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:60,color:COLORS.borderGray,fontSize:18}}>—</div>
-                    : cards.map(v=><ValueCard key={v.id} v={v}/>)
+                    ?<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:60,color:COLORS.borderGray,fontSize:18}}>—</div>
+                    :cards.map(v=><ValueCard key={v.id} v={v}/>)
                   }
                 </div>
               );
@@ -321,10 +275,8 @@ function ValueHeatmap({ values }) {
           </div>
         );
       })}
-
-      {/* Unclassified (no confidence) */}
-      {(() => {
-        const unclassified = values.filter(v=>!CONF_ROWS.includes(v.confidence));
+      {(()=>{
+        const unclassified=values.filter(v=>!CONF_ROWS.includes(v.confidence));
         if(!unclassified.length) return null;
         return (
           <div style={{marginTop:12}}>
@@ -390,17 +342,14 @@ function Dashboard() {
   if (error&&!data) return <div><Header/><div style={{padding:28}}><Card style={{borderLeft:`4px solid ${COLORS.red}`,background:COLORS.lightRed}}><div style={{color:COLORS.red,fontWeight:600,marginBottom:6}}>Unable to load data</div><div style={{color:COLORS.mid,fontSize:13,marginBottom:12}}>{error}</div><button onClick={loadData} style={{background:COLORS.red,color:"#fff",border:"none",borderRadius:6,padding:"8px 16px",cursor:"pointer",fontWeight:600,fontSize:13}}>Retry</button></Card></div></div>;
 
   const {frictions,habits,aiTasks,values} = data;
-  const habitsActive = habits.filter(h=>h.decision==="Keep"||h.decision==="Adjust");
-  const validated    = values.filter(v=>v.sponsor==="Validated");
-  const avgNIU       = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):"—";
-
+  const habitsActive  = habits.filter(h=>h.decision==="Keep"||h.decision==="Adjust");
+  const validated     = values.filter(v=>v.sponsor==="Validated");
   const pending       = values.filter(v=>v.sponsor!=="Validated");
-  const dimTotals     = DIM_KEYS.map((k,i)=>({label:DIM_LABELS[i],value:validated.reduce((s,v)=>s+(v[k]||0),0),color:PIE_COLORS[i]})).filter(d=>d.value>0);
-  const dimTotalsPending = DIM_KEYS.map((k,i)=>({label:DIM_LABELS[i],value:pending.reduce((s,v)=>s+(v[k]||0),0),color:PIE_COLORS[i]})).filter(d=>d.value>0);
+  const avgNIU        = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):"—";
+  const dimTotalsValidated = DIM_KEYS.map((k,i)=>({label:DIM_LABELS[i],value:validated.reduce((s,v)=>s+(v[k]||0),0),color:PIE_COLORS[i]})).filter(d=>d.value>0);
+  const dimTotalsPending   = DIM_KEYS.map((k,i)=>({label:DIM_LABELS[i],value:pending.reduce((s,v)=>s+(v[k]||0),0),color:PIE_COLORS[i]})).filter(d=>d.value>0);
 
-  const validatedValueIds  = new Set(validated.map(v=>normId(v._id)));
-  const aiTasksValidated   = aiTasks.filter(a=>[...a.relatedValue].some(id=>validatedValueIds.has(id)));
-  const aiTaskValidatedIds = new Set(aiTasksValidated.map(a=>normId(a._id)));
+  const validatedValueIds = new Set(validated.map(v=>normId(v._id)));
   const chainRows = validated.map(v=>{
     const vId=normId(v._id);
     const linkedAITasks=aiTasks.filter(a=>a.relatedValue.has(vId));
@@ -416,6 +365,8 @@ function Dashboard() {
       {/* PULSE */}
       {active==="Pulse" && <div>
         <SectionHeader emoji="📊" title="Program Pulse" subtitle="Snapshot of the value creation chain — live from Notion."/>
+
+        {/* KPIs */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
           {[
             {label:"Frictions identified",value:frictions.length,sub:"all entries",color:COLORS.orange},
@@ -430,11 +381,28 @@ function Dashboard() {
             </Card>
           )}
         </div>
-        <Card style={{marginBottom:20}}>
-          <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>NIU Breakdown — Validated Values</div>
-          <div style={{fontSize:11,color:COLORS.light,marginBottom:16}}>Sum of each NIU dimension across Validated entries</div>
-          <PieChart data={dimTotals}/>
-        </Card>
+
+        {/* NIU Pie Charts — 2 colonnes */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+          <Card>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <Badge text="✓ Validated" color={COLORS.green} bg={COLORS.lightGreen} border={COLORS.borderGreen}/>
+              <span style={{fontSize:12,fontWeight:700,color:COLORS.mid,textTransform:"uppercase",letterSpacing:0.5}}>NIU Breakdown</span>
+            </div>
+            <div style={{fontSize:11,color:COLORS.light,marginBottom:16}}>Sum of each NIU dimension — {validated.length} validated {validated.length===1?"entry":"entries"}</div>
+            <PieChart data={dimTotalsValidated}/>
+          </Card>
+          <Card>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <Badge text="⏳ Pending" color={COLORS.gray} bg={COLORS.lightGray} border={COLORS.borderGray}/>
+              <span style={{fontSize:12,fontWeight:700,color:COLORS.mid,textTransform:"uppercase",letterSpacing:0.5}}>NIU Breakdown</span>
+            </div>
+            <div style={{fontSize:11,color:COLORS.light,marginBottom:16}}>Sum of each NIU dimension — {pending.length} non-validated {pending.length===1?"entry":"entries"}</div>
+            <PieChart data={dimTotalsPending}/>
+          </Card>
+        </div>
+
+        {/* Value Chain */}
         <Card>
           <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Value Chain — Validated Value Paths</div>
           <div style={{fontSize:11,color:COLORS.light,marginBottom:12}}>One row per Validated Value — traced back to originating Frictions</div>
@@ -444,9 +412,8 @@ function Dashboard() {
             )}
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {chainRows.map((row,i)=>{
-              const {color}=NIU_LABEL(row.value.niu);
-              return <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.4fr",gap:8,padding:"10px 12px",background:i%2===0?"#F8FAFC":"#fff",borderRadius:6,border:`1px solid ${COLORS.borderGray}`,alignItems:"center"}}>
+            {chainRows.map((row,i)=>(
+              <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.4fr",gap:8,padding:"10px 12px",background:i%2===0?"#F8FAFC":"#fff",borderRadius:6,border:`1px solid ${COLORS.borderGray}`,alignItems:"center"}}>
                 <div style={{fontSize:12,color:COLORS.mid}}>{row.frictions.length?row.frictions.map(f=>f.title).join(", "):"—"}</div>
                 <div style={{fontSize:12,color:COLORS.mid}}>{row.habits.length?row.habits.map(h=>h.title).join(", "):"—"}</div>
                 <div style={{fontSize:12,color:COLORS.mid}}>{row.aiTasks.length?row.aiTasks.map(a=>a.title).join(", "):"—"}</div>
@@ -454,8 +421,8 @@ function Dashboard() {
                   <div style={{fontSize:12,fontWeight:700,color:COLORS.dark,marginBottom:4}}>{row.value.title}</div>
                   <NIUBar score={row.value.niu}/>
                 </div>
-              </div>;
-            })}
+              </div>
+            ))}
             {chainRows.length===0&&<div style={{color:COLORS.light,fontSize:13,padding:"16px 0",textAlign:"center"}}>No validated values found.</div>}
           </div>
         </Card>
@@ -539,8 +506,6 @@ function Dashboard() {
       {/* VALUE — HEATMAP */}
       {active==="Value" && <div>
         <SectionHeader emoji="💰" title="Value Heatmap" subtitle="Chaque carte = une entrée VAL · Axe X : intensité NIU · Axe Y : niveau de confiance"/>
-
-        {/* Legend */}
         <Card style={{marginBottom:20,padding:"12px 20px"}}>
           <div style={{display:"flex",gap:24,flexWrap:"wrap",alignItems:"center"}}>
             <span style={{fontSize:11,fontWeight:700,color:COLORS.light,textTransform:"uppercase",letterSpacing:0.5}}>NIU Score →</span>
@@ -552,10 +517,9 @@ function Dashboard() {
             ))}
           </div>
         </Card>
-
         {values.length===0
-          ? <Card><div style={{color:COLORS.gray,textAlign:"center",padding:24}}>No value data found.</div></Card>
-          : <Card><ValueHeatmap values={values}/></Card>
+          ?<Card><div style={{color:COLORS.gray,textAlign:"center",padding:24}}>No value data found.</div></Card>
+          :<Card><ValueHeatmap values={values}/></Card>
         }
       </div>}
 
