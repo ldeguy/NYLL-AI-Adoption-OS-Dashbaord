@@ -344,7 +344,7 @@ function Dashboard() {
   const {frictions,habits,aiTasks,values} = data;
   const habitsActive  = habits.filter(h=>h.decision==="Keep"||h.decision==="Adjust");
   const validated     = values.filter(v=>v.sponsor==="Validated");
-  const pending       = values.filter(v=>v.sponsor!=="Validated");
+  const pending       = values.filter(v=>v.sponsor!=="Validated"&&v.sponsor!=="On Hold");
   const avgNIU        = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):"—";
   const dimTotalsValidated = DIM_KEYS.map((k,i)=>({label:DIM_LABELS[i],value:validated.reduce((s,v)=>s+(v[k]||0),0),color:PIE_COLORS[i]})).filter(d=>d.value>0);
   const dimTotalsPending   = DIM_KEYS.map((k,i)=>({label:DIM_LABELS[i],value:pending.reduce((s,v)=>s+(v[k]||0),0),color:PIE_COLORS[i]})).filter(d=>d.value>0);
@@ -428,23 +428,105 @@ function Dashboard() {
         </Card>
       </div>}
 
-      {/* FRICTIONS */}
-      {active==="Frictions" && <div>
-        <SectionHeader emoji="🔥" title="Frictions resolved by AI" subtitle="Execution irritants observed on the ground, addressed through Tato."/>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {[...frictions].sort((a,b)=>["High","Medium","Low"].indexOf(a.severity)-["High","Medium","Low"].indexOf(b.severity)).map(f=>
-            <Card key={f.id} style={{display:"flex",alignItems:"center",gap:16,padding:"14px 20px"}}>
-              <span style={{fontSize:11,color:COLORS.light,fontWeight:600,minWidth:52}}>{f.id}</span>
-              <div style={{flex:1}}><div style={{fontWeight:700,color:COLORS.dark,fontSize:14}}>{f.title}</div>{f.symptom&&<div style={{fontSize:12,color:COLORS.gray,marginTop:2}}>{f.symptom}</div>}</div>
-              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
-                <Badge text={f.area} color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/>
-                {f.impact&&<Badge text={f.impact} color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>}
-                {sevBadge(f.severity)}{stsBadge(f.status)}
+      {/* FRICTIONS — HEATMAP */}
+      {active==="Frictions" && (()=>{
+        const AREA_COLS = [
+          { key:"Meetings",     color:"#2563EB", bg:"#EFF6FF", border:"#BFDBFE" },
+          { key:"Planning",     color:"#16A34A", bg:"#F0FDF4", border:"#BBF7D0" },
+          { key:"Scope",        color:"#CA8A04", bg:"#FEFCE8", border:"#FEF08A" },
+          { key:"Coordination", color:"#7C3AED", bg:"#F5F3FF", border:"#DDD6FE" },
+          { key:"Governance",   color:"#EA580C", bg:"#FFF7ED", border:"#FED7AA" },
+        ];
+        const SEV_ROWS = ["High","Medium","Low"];
+        const SEV_STYLE = {
+          High:   { color:COLORS.red,    bg:COLORS.lightRed,    border:COLORS.borderRed   },
+          Medium: { color:COLORS.yellow, bg:COLORS.lightYellow, border:COLORS.borderYellow},
+          Low:    { color:COLORS.green,  bg:COLORS.lightGreen,  border:COLORS.borderGreen },
+        };
+        const IMPACT_STYLE = {
+          Time:    { color:COLORS.blue,   bg:COLORS.lightBlue,   border:COLORS.borderBlue   },
+          Risk:    { color:COLORS.orange, bg:COLORS.lightOrange, border:COLORS.borderOrange },
+          Quality: { color:COLORS.green,  bg:COLORS.lightGreen,  border:COLORS.borderGreen  },
+        };
+
+        const FrictionCard = ({f}) => (
+          <div style={{background:"#fff",border:`1.5px solid ${SEV_STYLE[f.severity]?.border||COLORS.borderGray}`,borderRadius:8,padding:"10px 12px",display:"flex",flexDirection:"column",gap:5,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4}}>
+              <span style={{fontSize:10,fontWeight:700,color:COLORS.light,letterSpacing:0.5}}>{f.id}</span>
+              {stsBadge(f.status)}
+            </div>
+            <div style={{fontSize:12,fontWeight:700,color:COLORS.dark,lineHeight:1.3}}>{f.title}</div>
+            {f.impact&&f.impact!=="—"&&(()=>{const s=IMPACT_STYLE[f.impact]||{color:COLORS.gray,bg:COLORS.lightGray,border:COLORS.borderGray};return <Badge text={f.impact} color={s.color} bg={s.bg} border={s.border}/>;})()}
+            {f.symptom&&<div style={{fontSize:11,color:COLORS.gray,fontStyle:"italic",marginTop:2,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{f.symptom}</div>}
+          </div>
+        );
+
+        return <div>
+          <SectionHeader emoji="🔥" title="Frictions Heatmap" subtitle="Chaque carte = une friction · Axe X : Execution Area · Axe Y : Severity"/>
+
+          {/* Legend */}
+          <Card style={{marginBottom:20,padding:"12px 20px"}}>
+            <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
+              <span style={{fontSize:11,fontWeight:700,color:COLORS.light,textTransform:"uppercase",letterSpacing:0.5}}>Impact →</span>
+              {Object.entries(IMPACT_STYLE).map(([k,s])=>(
+                <div key={k} style={{display:"flex",alignItems:"center",gap:6}}>
+                  <div style={{width:10,height:10,borderRadius:2,background:s.color}}/>
+                  <span style={{fontSize:12,color:COLORS.dark}}>{k}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card>
+            <div style={{overflowX:"auto"}}>
+              {/* Column headers */}
+              <div style={{display:"grid",gridTemplateColumns:"72px repeat(5,1fr)",gap:8,marginBottom:8}}>
+                <div/>
+                {AREA_COLS.map(col=>(
+                  <div key={col.key} style={{textAlign:"center",padding:"6px 8px",borderRadius:6,background:col.bg,border:`1px solid ${col.border}`}}>
+                    <div style={{fontSize:11,fontWeight:700,color:col.color}}>{col.key}</div>
+                  </div>
+                ))}
               </div>
-            </Card>
-          )}
-        </div>
-      </div>}
+
+              {/* Rows by Severity */}
+              {SEV_ROWS.map(sev=>{
+                const rowFrictions=frictions.filter(f=>f.severity===sev);
+                if(!rowFrictions.length) return null;
+                const s=SEV_STYLE[sev];
+                return (
+                  <div key={sev} style={{display:"grid",gridTemplateColumns:"72px repeat(5,1fr)",gap:8,marginBottom:8,alignItems:"start"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"8px 4px",borderRadius:6,background:s.bg,border:`1px solid ${s.border}`,minHeight:60}}>
+                      <span style={{fontSize:11,fontWeight:700,color:s.color,writingMode:"vertical-rl",transform:"rotate(180deg)",letterSpacing:0.5}}>{sev}</span>
+                    </div>
+                    {AREA_COLS.map((col,ci)=>{
+                      const cards=rowFrictions.filter(f=>f.area===col.key);
+                      return (
+                        <div key={col.key} style={{background:cards.length?col.bg:"#F9FAFB",border:`1px dashed ${cards.length?col.border:COLORS.borderGray}`,borderRadius:8,padding:cards.length?8:0,minHeight:60,display:"flex",flexDirection:"column",gap:8}}>
+                          {cards.length===0
+                            ?<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:60,color:COLORS.borderGray,fontSize:18}}>—</div>
+                            :cards.map(f=><FrictionCard key={f.id} f={f}/>)
+                          }
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+              {/* Unclassified */}
+              {(()=>{
+                const u=frictions.filter(f=>!SEV_ROWS.includes(f.severity)||!AREA_COLS.map(c=>c.key).includes(f.area));
+                if(!u.length) return null;
+                return <div style={{marginTop:12}}>
+                  <div style={{fontSize:11,fontWeight:700,color:COLORS.light,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>— Non classifié</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{u.map(f=><div key={f.id} style={{width:220}}><FrictionCard f={f}/></div>)}</div>
+                </div>;
+              })()}
+            </div>
+          </Card>
+        </div>;
+      })()}
 
       {/* HABITS */}
       {active==="Habits" && <div>
