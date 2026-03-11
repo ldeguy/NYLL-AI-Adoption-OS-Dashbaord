@@ -54,7 +54,6 @@ function parseRelIds(val) {
 }
 
 const parseFrictions = raw => raw.map((r,i) => ({
-  _id: r._id || `frc-${i}`,
   id: nf(r,"Waste ID","waste_id") || `WST-0${i+1}`,
   title: nf(r,"Title","title","name") || "Untitled",
   area: nf(r,"Execution Area","execution_area") || "—",
@@ -66,7 +65,6 @@ const parseFrictions = raw => raw.map((r,i) => ({
 }));
 
 const parseHabits = raw => raw.map((r,i) => ({
-  _id: r._id || `hab-${i}`,
   id: nf(r,"PDCA ID","pdca_id") || `PDC-0${i+1}`,
   title: nf(r,"Title","title","name") || "Untitled",
   old: nf(r,"Old Habit","old_habit") || "—",
