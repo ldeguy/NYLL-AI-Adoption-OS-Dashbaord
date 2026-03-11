@@ -358,28 +358,46 @@ function Dashboard() {
       {/* HABITS */}
       {active==="Habits" && <div>
         <SectionHeader emoji="🔁" title="Habits anchored" subtitle="What the team actually does differently today because of Tato."/>
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {habits.map(h=>
-            <Card key={h.id}>
-              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16}}>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:11,color:COLORS.light,fontWeight:600}}>{h.id}</span><span style={{fontWeight:700,color:COLORS.dark,fontSize:14}}>{h.title}</span></div>
-                  <div style={{display:"flex",alignItems:"center",gap:10,fontSize:13}}>
-                    <div style={{flex:1,background:COLORS.lightRed,border:`1px solid ${COLORS.borderRed}`,borderRadius:6,padding:"8px 12px"}}><div style={{fontSize:10,fontWeight:700,color:COLORS.red,textTransform:"uppercase",marginBottom:3}}>Before</div><div style={{color:COLORS.mid}}>{h.old}</div></div>
-                    <span style={{color:COLORS.light,fontSize:18}}>→</span>
-                    <div style={{flex:1,background:COLORS.lightGreen,border:`1px solid ${COLORS.borderGreen}`,borderRadius:6,padding:"8px 12px"}}><div style={{fontSize:10,fontWeight:700,color:COLORS.green,textTransform:"uppercase",marginBottom:3}}>After</div><div style={{color:COLORS.mid}}>{h.new}</div></div>
-                  </div>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",minWidth:130}}>
-                  {resBadge(h.result)}
-                  <Badge text={h.decision==="Keep"?"✓ Keep":h.decision} color={h.decision==="Keep"?COLORS.green:h.decision==="Adjust"?COLORS.orange:COLORS.gray} bg={h.decision==="Keep"?COLORS.lightGreen:h.decision==="Adjust"?COLORS.lightOrange:COLORS.lightGray} border={h.decision==="Keep"?COLORS.borderGreen:h.decision==="Adjust"?COLORS.borderOrange:COLORS.borderGray}/>
-                  <Badge text={h.cycle} color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/>
-                  <Badge text={h.owner} color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>
-                </div>
+        {(() => {
+          // Group by cycle, sorted numerically
+          const groups = {};
+          habits.forEach(h => { const c = h.cycle||"—"; if (!groups[c]) groups[c]=[]; groups[c].push(h); });
+          const sortedCycles = Object.keys(groups).sort((a,b) => {
+            const na = parseInt((a.match(/\d+/)||[0])[0],10);
+            const nb = parseInt((b.match(/\d+/)||[0])[0],10);
+            return na - nb;
+          });
+          return sortedCycles.map(cycle => (
+            <div key={cycle} style={{marginBottom:28}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                <div style={{height:1,flex:1,background:COLORS.borderGray}}/>
+                <span style={{fontSize:12,fontWeight:700,color:COLORS.blue,background:COLORS.lightBlue,border:`1px solid ${COLORS.borderBlue}`,borderRadius:20,padding:"3px 14px",whiteSpace:"nowrap"}}>{cycle}</span>
+                <div style={{height:1,flex:1,background:COLORS.borderGray}}/>
               </div>
-            </Card>
-          )}
-        </div>
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {groups[cycle].map(h=>
+                  <Card key={h.id}>
+                    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16}}>
+                      <div style={{flex:1}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:11,color:COLORS.light,fontWeight:600}}>{h.id}</span><span style={{fontWeight:700,color:COLORS.dark,fontSize:14}}>{h.title}</span></div>
+                        <div style={{display:"flex",alignItems:"center",gap:10,fontSize:13}}>
+                          <div style={{flex:1,background:COLORS.lightRed,border:`1px solid ${COLORS.borderRed}`,borderRadius:6,padding:"8px 12px"}}><div style={{fontSize:10,fontWeight:700,color:COLORS.red,textTransform:"uppercase",marginBottom:3}}>Before</div><div style={{color:COLORS.mid}}>{h.old}</div></div>
+                          <span style={{color:COLORS.light,fontSize:18}}>→</span>
+                          <div style={{flex:1,background:COLORS.lightGreen,border:`1px solid ${COLORS.borderGreen}`,borderRadius:6,padding:"8px 12px"}}><div style={{fontSize:10,fontWeight:700,color:COLORS.green,textTransform:"uppercase",marginBottom:3}}>After</div><div style={{color:COLORS.mid}}>{h.new}</div></div>
+                        </div>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",minWidth:130}}>
+                        {resBadge(h.result)}
+                        <Badge text={h.decision==="Keep"?"✓ Keep":h.decision} color={h.decision==="Keep"?COLORS.green:h.decision==="Adjust"?COLORS.orange:COLORS.gray} bg={h.decision==="Keep"?COLORS.lightGreen:h.decision==="Adjust"?COLORS.lightOrange:COLORS.lightGray} border={h.decision==="Keep"?COLORS.borderGreen:h.decision==="Adjust"?COLORS.borderOrange:COLORS.borderGray}/>
+                        <Badge text={h.owner} color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            </div>
+          ));
+        })()}
       </div>}
 
       {/* AI TASKS */}
