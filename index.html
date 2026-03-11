@@ -455,7 +455,10 @@ function Dashboard() {
                   <div style={{fontSize:11,fontWeight:700,color:COLORS.light,textTransform:"uppercase",marginBottom:6}}>NIU Score</div>
                   <NIUBar score={v.niu}/>
                   <div style={{fontSize:12,color,fontWeight:600,marginTop:4}}>{label}</div>
-                  <div style={{marginTop:8}}><Badge text={`Confidence: ${v.confidence}`} color={v.confidence==="High"?COLORS.green:v.confidence==="Medium"?COLORS.yellow:COLORS.red} bg={v.confidence==="High"?COLORS.lightGreen:v.confidence==="Medium"?COLORS.lightYellow:COLORS.lightRed} border={COLORS.borderGray}/></div>
+                  <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:6}}>
+                    <Badge text={`Confidence: ${v.confidence}`} color={v.confidence==="High"?COLORS.green:v.confidence==="Medium"?COLORS.yellow:COLORS.red} bg={v.confidence==="High"?COLORS.lightGreen:v.confidence==="Medium"?COLORS.lightYellow:COLORS.lightRed} border={COLORS.borderGray}/>
+                    <Badge text={v.sponsor} color={v.sponsor==="Validated"?COLORS.green:v.sponsor==="In Review"?COLORS.blue:COLORS.gray} bg={v.sponsor==="Validated"?COLORS.lightGreen:v.sponsor==="In Review"?COLORS.lightBlue:COLORS.lightGray} border={v.sponsor==="Validated"?COLORS.borderGreen:v.sponsor==="In Review"?COLORS.borderBlue:COLORS.borderGray}/>
+                  </div>
                 </div>
               </div>
             </Card>;
@@ -474,9 +477,10 @@ function Dashboard() {
                 <div style={{fontWeight:700,color:COLORS.dark,fontSize:13,marginBottom:6}}>{v.title}</div>
                 <div style={{fontSize:12,color:COLORS.gray,marginBottom:8}}>{v.estimate}</div>
                 <NIUBar score={v.niu}/>
-                <div style={{marginTop:6,display:"flex",gap:6}}>
+                <div style={{marginTop:6,display:"flex",gap:6,flexWrap:"wrap"}}>
                   <Badge text={v.type} color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/>
                   <Badge text={`Confidence: ${v.confidence}`} color={v.confidence==="High"?COLORS.green:v.confidence==="Medium"?COLORS.yellow:COLORS.red} bg={v.confidence==="High"?COLORS.lightGreen:v.confidence==="Medium"?COLORS.lightYellow:COLORS.lightRed} border={COLORS.borderGray}/>
+                  <Badge text={v.sponsor} color={v.sponsor==="Validated"?COLORS.green:v.sponsor==="In Review"?COLORS.blue:COLORS.gray} bg={v.sponsor==="Validated"?COLORS.lightGreen:v.sponsor==="In Review"?COLORS.lightBlue:COLORS.lightGray} border={v.sponsor==="Validated"?COLORS.borderGreen:v.sponsor==="In Review"?COLORS.borderBlue:COLORS.borderGray}/>
                 </div>
               </Card>
             )}
