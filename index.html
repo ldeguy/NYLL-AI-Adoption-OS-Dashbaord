@@ -204,12 +204,7 @@ function Dashboard() {
 
   const {frictions,habits,aiTasks,values} = data;
 
-  // CORRECTION 3b — "anchored" = Decision:Keep + Result:Observed
-  const anchored = habits.filter(h=>h.decision==="Keep"&&h.result==="Observed");
-  // CORRECTION 3a — max cycle number extracted from text field
-  const maxCycle = maxCycleNumber(habits);
-  const recurring = aiTasks.filter(a=>a.freq==="Weekly"||a.freq==="Daily");
-  // CORRECTION 2 — only count truly Resolved (not Addressed)
+  const habitsActive = habits.filter(h=>h.decision==="Keep"||h.decision==="Adjust");
   const resolved = frictions.filter(f=>f.status==="Resolved");
   const validated = values.filter(v=>v.sponsor==="Validated");
   const avgNIU = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):"—";
@@ -222,10 +217,9 @@ function Dashboard() {
         <SectionHeader emoji="📊" step="0" title="Program Pulse" subtitle="Snapshot of the value creation chain — live from Notion."/>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
           {[
-            {label:"Frictions identified",value:frictions.length,sub:`${resolved.length} resolved`,color:COLORS.orange},
-            // CORRECTION 3a+3b — label + légende + maxCycle
-            {label:"Habits anchored",value:anchored.length,sub:`of cycle ${maxCycle} · Decision: Keep + Result: Observed`,color:COLORS.green},
-            {label:"AI Tasks recurring",value:recurring.length,sub:"Daily or Weekly",color:COLORS.blue},
+            {label:"Frictions identified",value:frictions.length,sub:"all friction entries",color:COLORS.orange},
+            {label:"Habits active",value:habitsActive.length,sub:`of ${habits.length} total · Decision: Keep or Adjust`,color:COLORS.green},
+            {label:"AI Tasks identified",value:aiTasks.length,sub:"all AI-enabled task entries",color:COLORS.blue},
             {label:"NIU avg",value:avgNIU+"/8",sub:`${validated.length} validated · ${values.length} total`,color:COLORS.purple},
           ].map(kpi=>
             <Card key={kpi.label} style={{borderTop:`3px solid ${kpi.color}`}}>
