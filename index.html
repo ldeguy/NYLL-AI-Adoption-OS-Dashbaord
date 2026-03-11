@@ -431,23 +431,24 @@ function Dashboard() {
 
       {/* FRICTIONS — HEATMAP */}
       {active==="Frictions" && (()=>{
-        const AREA_COLS = [
-          { key:"Overhead",   color:"#2563EB", bg:"#EFF6FF", border:"#BFDBFE" },
-          { key:"Idle Time",  color:"#7C3AED", bg:"#F5F3FF", border:"#DDD6FE" },
-          { key:"Rework",     color:"#DC2626", bg:"#FEF2F2", border:"#FECACA" },
-          { key:"Scope Creep",color:"#CA8A04", bg:"#FEFCE8", border:"#FEF08A" },
+        const WASTE_COLS = [
+          { key:"Overhead",    color:"#2563EB", bg:"#EFF6FF", border:"#BFDBFE" },
+          { key:"Idle Time",   color:"#7C3AED", bg:"#F5F3FF", border:"#DDD6FE" },
+          { key:"Rework",      color:"#DC2626", bg:"#FEF2F2", border:"#FECACA" },
+          { key:"Scope Creep", color:"#CA8A04", bg:"#FEFCE8", border:"#FEF08A" },
         ];
         const SEV_ROWS = ["High","Medium","Low"];
         const SEV_STYLE = {
-          High:   { color:COLORS.red,    bg:COLORS.lightRed,    border:COLORS.borderRed   },
-          Medium: { color:COLORS.yellow, bg:COLORS.lightYellow, border:COLORS.borderYellow},
-          Low:    { color:COLORS.green,  bg:COLORS.lightGreen,  border:COLORS.borderGreen },
+          High:   { color:COLORS.red,    bg:COLORS.lightRed,    border:COLORS.borderRed    },
+          Medium: { color:COLORS.yellow, bg:COLORS.lightYellow, border:COLORS.borderYellow },
+          Low:    { color:COLORS.green,  bg:COLORS.lightGreen,  border:COLORS.borderGreen  },
         };
         const IMPACT_STYLE = {
           Time:    { color:COLORS.blue,   bg:COLORS.lightBlue,   border:COLORS.borderBlue   },
           Risk:    { color:COLORS.orange, bg:COLORS.lightOrange, border:COLORS.borderOrange },
           Quality: { color:COLORS.green,  bg:COLORS.lightGreen,  border:COLORS.borderGreen  },
         };
+        const wasteKeys = new Set(WASTE_COLS.map(c=>c.key));
 
         const FrictionCard = ({f}) => (
           <div style={{background:"#fff",border:`1.5px solid ${SEV_STYLE[f.severity]?.border||COLORS.borderGray}`,borderRadius:8,padding:"10px 12px",display:"flex",flexDirection:"column",gap:5,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
@@ -461,8 +462,10 @@ function Dashboard() {
           </div>
         );
 
+        const grid = "72px repeat(4,1fr)";
+
         return <div>
-          <SectionHeader emoji="🔥" title="Frictions Heatmap" subtitle="Chaque carte = une friction · Axe X : Execution Area · Axe Y : Severity"/>
+          <SectionHeader emoji="🔥" title="Frictions Heatmap" subtitle="Each card = one friction · X axis: Waste Type · Y axis: Severity"/>
 
           {/* Legend */}
           <Card style={{marginBottom:20,padding:"12px 20px"}}>
@@ -480,9 +483,9 @@ function Dashboard() {
           <Card>
             <div style={{overflowX:"auto"}}>
               {/* Column headers */}
-              <div style={{display:"grid",gridTemplateColumns:"72px repeat(4,1fr)",gap:8,marginBottom:8}}>
+              <div style={{display:"grid",gridTemplateColumns:grid,gap:8,marginBottom:8}}>
                 <div/>
-                {AREA_COLS.map(col=>(
+                {WASTE_COLS.map(col=>(
                   <div key={col.key} style={{textAlign:"center",padding:"6px 8px",borderRadius:6,background:col.bg,border:`1px solid ${col.border}`}}>
                     <div style={{fontSize:11,fontWeight:700,color:col.color}}>{col.key}</div>
                   </div>
@@ -495,11 +498,11 @@ function Dashboard() {
                 if(!rowFrictions.length) return null;
                 const s=SEV_STYLE[sev];
                 return (
-                  <div key={sev} style={{display:"grid",gridTemplateColumns:"72px repeat(5,1fr)",gap:8,marginBottom:8,alignItems:"start"}}>
+                  <div key={sev} style={{display:"grid",gridTemplateColumns:grid,gap:8,marginBottom:8,alignItems:"start"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"8px 4px",borderRadius:6,background:s.bg,border:`1px solid ${s.border}`,minHeight:60}}>
                       <span style={{fontSize:11,fontWeight:700,color:s.color,writingMode:"vertical-rl",transform:"rotate(180deg)",letterSpacing:0.5}}>{sev}</span>
                     </div>
-                    {AREA_COLS.map((col,ci)=>{
+                    {WASTE_COLS.map(col=>{
                       const cards=rowFrictions.filter(f=>f.wasteType===col.key);
                       return (
                         <div key={col.key} style={{background:cards.length?col.bg:"#F9FAFB",border:`1px dashed ${cards.length?col.border:COLORS.borderGray}`,borderRadius:8,padding:cards.length?8:0,minHeight:60,display:"flex",flexDirection:"column",gap:8}}>
@@ -514,12 +517,12 @@ function Dashboard() {
                 );
               })}
 
-              {/* Unclassified */}
+              {/* Unclassified — frictions with unknown severity OR unknown wasteType */}
               {(()=>{
-                const u=frictions.filter(f=>!SEV_ROWS.includes(f.severity)||!AREA_COLS.map(c=>c.key).includes(f.area));
+                const u=frictions.filter(f=>!SEV_ROWS.includes(f.severity)||!wasteKeys.has(f.wasteType));
                 if(!u.length) return null;
                 return <div style={{marginTop:12}}>
-                  <div style={{fontSize:11,fontWeight:700,color:COLORS.light,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>— Non classifié</div>
+                  <div style={{fontSize:11,fontWeight:700,color:COLORS.light,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>— Unclassified</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{u.map(f=><div key={f.id} style={{width:220}}><FrictionCard f={f}/></div>)}</div>
                 </div>;
               })()}
