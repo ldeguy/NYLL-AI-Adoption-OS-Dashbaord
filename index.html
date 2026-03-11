@@ -457,7 +457,7 @@ function Dashboard() {
                   <div style={{fontSize:12,color,fontWeight:600,marginTop:4}}>{label}</div>
                   <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:6}}>
                     <Badge text={`Confidence: ${v.confidence}`} color={v.confidence==="High"?COLORS.green:v.confidence==="Medium"?COLORS.yellow:COLORS.red} bg={v.confidence==="High"?COLORS.lightGreen:v.confidence==="Medium"?COLORS.lightYellow:COLORS.lightRed} border={COLORS.borderGray}/>
-                    <Badge text={v.sponsor} color={v.sponsor==="Validated"?COLORS.green:v.sponsor==="In Review"?COLORS.blue:COLORS.gray} bg={v.sponsor==="Validated"?COLORS.lightGreen:v.sponsor==="In Review"?COLORS.lightBlue:COLORS.lightGray} border={v.sponsor==="Validated"?COLORS.borderGreen:v.sponsor==="In Review"?COLORS.borderBlue:COLORS.borderGray}/>
+                    <Badge text={v.sponsor} color={v.sponsor==="Validated"?COLORS.green:v.sponsor==="On Hold"?COLORS.red:v.sponsor==="Needs revision"?COLORS.orange:COLORS.gray} bg={v.sponsor==="Validated"?COLORS.lightGreen:v.sponsor==="On Hold"?COLORS.lightRed:v.sponsor==="Needs revision"?COLORS.lightOrange:COLORS.lightGray} border={v.sponsor==="Validated"?COLORS.borderGreen:v.sponsor==="On Hold"?COLORS.borderRed:v.sponsor==="Needs revision"?COLORS.borderOrange:COLORS.borderGray}/>
                   </div>
                 </div>
               </div>
@@ -480,7 +480,7 @@ function Dashboard() {
                 <div style={{marginTop:6,display:"flex",gap:6,flexWrap:"wrap"}}>
                   <Badge text={v.type} color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/>
                   <Badge text={`Confidence: ${v.confidence}`} color={v.confidence==="High"?COLORS.green:v.confidence==="Medium"?COLORS.yellow:COLORS.red} bg={v.confidence==="High"?COLORS.lightGreen:v.confidence==="Medium"?COLORS.lightYellow:COLORS.lightRed} border={COLORS.borderGray}/>
-                  <Badge text={v.sponsor} color={v.sponsor==="Validated"?COLORS.green:v.sponsor==="In Review"?COLORS.blue:COLORS.gray} bg={v.sponsor==="Validated"?COLORS.lightGreen:v.sponsor==="In Review"?COLORS.lightBlue:COLORS.lightGray} border={v.sponsor==="Validated"?COLORS.borderGreen:v.sponsor==="In Review"?COLORS.borderBlue:COLORS.borderGray}/>
+                  <Badge text={v.sponsor} color={v.sponsor==="Validated"?COLORS.green:v.sponsor==="On Hold"?COLORS.red:v.sponsor==="Needs revision"?COLORS.orange:COLORS.gray} bg={v.sponsor==="Validated"?COLORS.lightGreen:v.sponsor==="On Hold"?COLORS.lightRed:v.sponsor==="Needs revision"?COLORS.lightOrange:COLORS.lightGray} border={v.sponsor==="Validated"?COLORS.borderGreen:v.sponsor==="On Hold"?COLORS.borderRed:v.sponsor==="Needs revision"?COLORS.borderOrange:COLORS.borderGray}/>
                 </div>
               </Card>
             )}
