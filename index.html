@@ -92,14 +92,14 @@ function maxCycleNumber(habits) {
 
 const parseAITasks = raw => raw.map((r,i) => ({
   id: nf(r,"Task ID","task_id") || `AIT-0${i+1}`,
-  _id: r._id || `ait-${i}`,
   title: nf(r,"Task Name","task_name","Title","title") || "Untitled",
   capability: nf(r,"AI Capability Type","ai_capability_type") || "—",
   freq: nf(r,"Frequency / Recurrence","frequency_recurrence","frequency") || "Ad hoc",
   original: nf(r,"Original Work (As-Is)","original_work") || "—",
   contribution: nf(r,"AI Contribution","ai_contribution") || "—",
   humanRole: nf(r,"Human Role After AI","human_role_after_ai") || "—",
-  relatedValue: parseRelIds(nf(r,"Related Value","related_value")),
+  // Related Value = comma-separated Notion page IDs, non-empty means linked
+  hasValue: !!(nf(r,"Related Value","related_value")),
 }));
 
 const parseValues = raw => raw.map((r,i) => {
@@ -110,7 +110,6 @@ const parseValues = raw => raw.map((r,i) => {
   const dims = [fe,es,rg,ha].filter(v=>v>0);
   const niu = dims.length ? Math.round((dims.reduce((a,b)=>a+b,0)/dims.length)*10)/10 : 0;
   return {
-    _id: r._id || `val-${i}`,
     id: nf(r,"Value ID","value_id") || `VAL-0${i+1}`,
     title: nf(r,"Title","title","name") || "Untitled",
     area: nf(r,"Execution Area","execution_area") || "—",
