@@ -47,12 +47,6 @@ function nf(obj, ...keys) {
   return null;
 }
 
-// Parse a relation field (comma-separated Notion page IDs) into a Set
-function parseRelIds(val) {
-  if (!val) return new Set();
-  return new Set(val.split(",").map(s => s.trim()).filter(Boolean));
-}
-
 const parseFrictions = raw => raw.map((r,i) => ({
   id: nf(r,"Waste ID","waste_id") || `WST-0${i+1}`,
   title: nf(r,"Title","title","name") || "Untitled",
@@ -61,7 +55,6 @@ const parseFrictions = raw => raw.map((r,i) => ({
   impact: nf(r,"Impact Hypothesis Type","impact_hypothesis_type") || "—",
   status: nf(r,"Status","status") || "Observed",
   symptom: nf(r,"Observable Symptom","observable_symptom") || "",
-  relatedPDCA: parseRelIds(nf(r,"Related PDCA(s)","related_pdca")),
 }));
 
 const parseHabits = raw => raw.map((r,i) => ({
@@ -73,7 +66,6 @@ const parseHabits = raw => raw.map((r,i) => ({
   result: nf(r,"Result","result") || "Pending",
   decision: nf(r,"Decision","decision") || "Pending",
   owner: nf(r,"Owner","owner") || "—",
-  relatedAITask: parseRelIds(nf(r,"Related AI-Enabled Task","related_ai_enabled_task")),
 }));
 
 // Extract the highest cycle number from text values like "Cycle 1", "Cycle 2", "3", etc.
