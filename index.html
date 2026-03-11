@@ -298,6 +298,7 @@ const NAV = [
   {key:"Habits",   label:"🔁 Habits"},
   {key:"AI Tasks", label:"🤖 AI Tasks"},
   {key:"Value",    label:"💰 Value"},
+  {key:"W2V",      label:"🔗 Waste-to-Value"},
   {key:"Pipeline", label:"🔮 Pipeline"},
 ];
 
@@ -607,6 +608,176 @@ function Dashboard() {
           :<Card><ValueHeatmap values={values}/></Card>
         }
       </div>}
+
+      {/* WASTE-TO-VALUE */}
+      {active==="W2V" && (()=>{
+        const WASTE_TYPES = [
+          { key:"Overhead",    color:"#2563EB", bg:"#EFF6FF", border:"#BFDBFE", emoji:"⚙️" },
+          { key:"Idle Time",   color:"#7C3AED", bg:"#F5F3FF", border:"#DDD6FE", emoji:"⏳" },
+          { key:"Rework",      color:"#DC2626", bg:"#FEF2F2", border:"#FECACA", emoji:"🔁" },
+          { key:"Scope Creep", color:"#CA8A04", bg:"#FEFCE8", border:"#FEF08A", emoji:"📐" },
+        ];
+
+        // Build chain: Friction → PDCA → AITask → Value
+        // For each waste type, collect frictions, then walk relations
+        const tiles = WASTE_TYPES.map(wt => {
+          const wtFrictions = frictions.filter(f => f.wasteType === wt.key);
+
+          // Collect all PDCA IDs linked from these frictions
+          const linkedPDCAIds = new Set();
+          wtFrictions.forEach(f => f.relatedPDCA.forEach(id => linkedPDCAIds.add(id)));
+
+          // Find habits whose _id matches
+          const linkedHabits = habits.filter(h => linkedPDCAIds.has(normId(h._id)));
+
+          // Collect all AITask IDs linked from these habits
+          const linkedAITaskIds = new Set();
+          linkedHabits.forEach(h => h.relatedAITask.forEach(id => linkedAITaskIds.add(id)));
+
+          // Find AI tasks
+          const linkedAITasks = aiTasks.filter(a => linkedAITaskIds.has(normId(a._id)));
+
+          // Collect all Value IDs linked from these AI tasks
+          const linkedValueIds = new Set();
+          linkedAITasks.forEach(a => a.relatedValue.forEach(id => linkedValueIds.add(id)));
+
+          // Find values
+          const linkedValues = values.filter(v => linkedValueIds.has(normId(v._id)));
+
+          // Compute avg NIU
+          const avgNiu = linkedValues.length
+            ? Math.round((linkedValues.reduce((s,v) => s+v.niu, 0) / linkedValues.length) * 10) / 10
+            : null;
+
+          return { ...wt, wtFrictions, linkedHabits, linkedAITasks, linkedValues, avgNiu };
+        });
+
+        return <div>
+          <SectionHeader emoji="🔗" title="Waste-to-Value" subtitle="How each type of waste traces through to value creation — via Habits, AI Tasks, and NIU Score."/>
+
+          {/* Summary tiles */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
+            {tiles.map(t => {
+              const {color,label:niuLabel} = t.avgNiu!==null ? NIU_LABEL(t.avgNiu) : {color:COLORS.light,label:"No data"};
+              return (
+                <Card key={t.key} style={{borderTop:`3px solid ${t.color}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                    <span style={{fontSize:18}}>{t.emoji}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:t.color}}>{t.key}</span>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:8,fontSize:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between"}}>
+                      <span style={{color:COLORS.gray}}>Frictions</span>
+                      <span style={{fontWeight:700,color:COLORS.dark}}>{t.wtFrictions.length}</span>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between"}}>
+                      <span style={{color:COLORS.gray}}>Habits</span>
+                      <span style={{fontWeight:700,color:COLORS.dark}}>{t.linkedHabits.length}</span>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between"}}>
+                      <span style={{color:COLORS.gray}}>AI Tasks</span>
+                      <span style={{fontWeight:700,color:COLORS.dark}}>{t.linkedAITasks.length}</span>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between"}}>
+                      <span style={{color:COLORS.gray}}>Value entries</span>
+                      <span style={{fontWeight:700,color:COLORS.dark}}>{t.linkedValues.length}</span>
+                    </div>
+                    <div style={{marginTop:4,paddingTop:8,borderTop:`1px solid ${COLORS.borderGray}`}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        <span style={{fontSize:11,fontWeight:700,color:COLORS.light,textTransform:"uppercase",letterSpacing:0.3}}>Avg NIU</span>
+                        <span style={{fontSize:16,fontWeight:800,color}}>{t.avgNiu!==null?`${t.avgNiu}/8`:"—"}</span>
+                      </div>
+                      {t.avgNiu!==null && <NIUBar score={t.avgNiu}/>}
+                      <div style={{fontSize:11,color,fontWeight:600,marginTop:4}}>{niuLabel}</div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Detail rows — one per waste type */}
+          {tiles.map(t => (
+            <Card key={t.key} style={{marginBottom:16}}>
+              {/* Header */}
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,paddingBottom:12,borderBottom:`1px solid ${COLORS.borderGray}`}}>
+                <span style={{fontSize:16}}>{t.emoji}</span>
+                <span style={{fontSize:14,fontWeight:700,color:t.color}}>{t.key}</span>
+                <div style={{flex:1}}/>
+                {t.avgNiu!==null && <>
+                  <span style={{fontSize:11,color:COLORS.light}}>Avg NIU</span>
+                  <span style={{fontSize:14,fontWeight:800,color:NIU_LABEL(t.avgNiu).color}}>{t.avgNiu}/8</span>
+                </>}
+              </div>
+
+              {/* 4-column chain */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr auto 1fr auto 1fr",gap:8,alignItems:"start"}}>
+                {/* Frictions */}
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:COLORS.orange,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>🔥 Frictions ({t.wtFrictions.length})</div>
+                  {t.wtFrictions.length===0
+                    ? <div style={{fontSize:12,color:COLORS.light,fontStyle:"italic"}}>—</div>
+                    : t.wtFrictions.map(f=>(
+                        <div key={f.id} style={{fontSize:11,color:COLORS.mid,background:COLORS.lightOrange,border:`1px solid ${COLORS.borderOrange}`,borderRadius:6,padding:"5px 8px",marginBottom:4}}>
+                          <span style={{fontWeight:700,color:COLORS.orange}}>{f.id}</span> · {f.title}
+                        </div>
+                      ))
+                  }
+                </div>
+                <div style={{color:COLORS.light,fontSize:16,paddingTop:24}}>→</div>
+
+                {/* Habits */}
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:COLORS.green,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>🔁 Habits ({t.linkedHabits.length})</div>
+                  {t.linkedHabits.length===0
+                    ? <div style={{fontSize:12,color:COLORS.light,fontStyle:"italic"}}>—</div>
+                    : t.linkedHabits.map(h=>(
+                        <div key={h.id} style={{fontSize:11,color:COLORS.mid,background:COLORS.lightGreen,border:`1px solid ${COLORS.borderGreen}`,borderRadius:6,padding:"5px 8px",marginBottom:4}}>
+                          <span style={{fontWeight:700,color:COLORS.green}}>{h.id}</span> · {h.title}
+                        </div>
+                      ))
+                  }
+                </div>
+                <div style={{color:COLORS.light,fontSize:16,paddingTop:24}}>→</div>
+
+                {/* AI Tasks */}
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:COLORS.blue,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>🤖 AI Tasks ({t.linkedAITasks.length})</div>
+                  {t.linkedAITasks.length===0
+                    ? <div style={{fontSize:12,color:COLORS.light,fontStyle:"italic"}}>—</div>
+                    : t.linkedAITasks.map(a=>(
+                        <div key={a.id} style={{fontSize:11,color:COLORS.mid,background:COLORS.lightBlue,border:`1px solid ${COLORS.borderBlue}`,borderRadius:6,padding:"5px 8px",marginBottom:4}}>
+                          <span style={{fontWeight:700,color:COLORS.blue}}>{a.id}</span> · {a.title}
+                        </div>
+                      ))
+                  }
+                </div>
+                <div style={{color:COLORS.light,fontSize:16,paddingTop:24}}>→</div>
+
+                {/* Values */}
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:COLORS.purple,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>💰 Value ({t.linkedValues.length})</div>
+                  {t.linkedValues.length===0
+                    ? <div style={{fontSize:12,color:COLORS.light,fontStyle:"italic"}}>—</div>
+                    : t.linkedValues.map(v=>{
+                        const {color} = NIU_LABEL(v.niu);
+                        return (
+                          <div key={v.id} style={{fontSize:11,color:COLORS.mid,background:COLORS.lightPurple,border:`1px solid ${COLORS.borderPurple}`,borderRadius:6,padding:"5px 8px",marginBottom:4}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                              <span><span style={{fontWeight:700,color:COLORS.purple}}>{v.id}</span> · {v.title}</span>
+                              <span style={{fontWeight:800,color,fontSize:12,marginLeft:8}}>{v.niu}/8</span>
+                            </div>
+                            <NIUBar score={v.niu}/>
+                          </div>
+                        );
+                      })
+                  }
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>;
+      })()}
 
       {/* PIPELINE */}
       {active==="Pipeline" && <div>
