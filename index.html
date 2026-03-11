@@ -394,7 +394,9 @@ function Dashboard() {
   const validated    = values.filter(v=>v.sponsor==="Validated");
   const avgNIU       = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):"—";
 
-  const dimTotals = DIM_KEYS.map((k,i)=>({label:DIM_LABELS[i],value:validated.reduce((s,v)=>s+(v[k]||0),0),color:PIE_COLORS[i]})).filter(d=>d.value>0);
+  const pending       = values.filter(v=>v.sponsor!=="Validated");
+  const dimTotals     = DIM_KEYS.map((k,i)=>({label:DIM_LABELS[i],value:validated.reduce((s,v)=>s+(v[k]||0),0),color:PIE_COLORS[i]})).filter(d=>d.value>0);
+  const dimTotalsPending = DIM_KEYS.map((k,i)=>({label:DIM_LABELS[i],value:pending.reduce((s,v)=>s+(v[k]||0),0),color:PIE_COLORS[i]})).filter(d=>d.value>0);
 
   const validatedValueIds  = new Set(validated.map(v=>normId(v._id)));
   const aiTasksValidated   = aiTasks.filter(a=>[...a.relatedValue].some(id=>validatedValueIds.has(id)));
