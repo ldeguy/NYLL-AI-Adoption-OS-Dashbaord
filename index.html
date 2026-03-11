@@ -47,9 +47,27 @@ function nf(obj, ...keys) {
   return null;
 }
 
+// Parse a relation field (comma-separated Notion page IDs) into a Set
+// Handles both raw IDs and full Notion URLs (extracts last path segment, strips dashes)
 function parseRelIds(val) {
   if (!val) return new Set();
-  return new Set(val.split(",").map(s => s.trim()).filter(Boolean));
+  return new Set(
+    val.split(",").map(s => {
+      s = s.trim();
+      // If it looks like a URL, extract the last path segment
+      if (s.includes("notion.so/")) {
+        const parts = s.split("/");
+        s = parts[parts.length - 1].split("?")[0];
+      }
+      // Normalize: remove dashes
+      return s.replace(/-/g,"");
+    }).filter(Boolean)
+  );
+}
+
+// Normalize a Notion page _id (remove dashes) for consistent lookup
+function normId(id) {
+  return (id||"").replace(/-/g,"");
 }
 
 const parseFrictions = raw => raw.map((r,i) => ({
@@ -76,6 +94,15 @@ const parseHabits = raw => raw.map((r,i) => ({
   owner: nf(r,"Owner","owner") || "—",
   relatedAITask: parseRelIds(nf(r,"Related AI-Enabled Task")),
 }));
+
+function maxCycleNumber(habits) {
+  let max = 0;
+  for (const h of habits) {
+    const match = (h.cycle||"").match(/\d+/);
+    if (match) { const n = parseInt(match[0],10); if (n>max) max=n; }
+  }
+  return max;
+}
 
 const parseAITasks = raw => raw.map((r,i) => ({
   _id: r._id || `ait-${i}`,
@@ -115,13 +142,12 @@ const Badge = ({text,color,bg,border}) => (
 const sevBadge = s => s==="High"?<Badge text="High" color={COLORS.red} bg={COLORS.lightRed} border={COLORS.borderRed}/>:s==="Medium"?<Badge text="Medium" color={COLORS.yellow} bg={COLORS.lightYellow} border={COLORS.borderYellow}/>:<Badge text="Low" color={COLORS.green} bg={COLORS.lightGreen} border={COLORS.borderGreen}/>;
 const stsBadge = s => {const m={Observed:{c:COLORS.yellow,bg:COLORS.lightYellow,b:COLORS.borderYellow},Addressed:{c:COLORS.blue,bg:COLORS.lightBlue,b:COLORS.borderBlue},Resolved:{c:COLORS.green,bg:COLORS.lightGreen,b:COLORS.borderGreen},Monitoring:{c:COLORS.purple,bg:COLORS.lightPurple,b:COLORS.borderPurple}}[s]||{c:COLORS.gray,bg:COLORS.lightGray,b:COLORS.borderGray};return <Badge text={s} color={m.c} bg={m.bg} border={m.b}/>;};
 const resBadge = r => {
-  if (r==="Observed")     return <Badge text="✓ Observed"     color={COLORS.green}  bg={COLORS.lightGreen}  border={COLORS.borderGreen}/>;
-  if (r==="Partial")      return <Badge text="~ Partial"      color={COLORS.orange} bg={COLORS.lightOrange} border={COLORS.borderOrange}/>;
-  if (r==="Not observed") return <Badge text="✗ Not observed" color={COLORS.red}    bg={COLORS.lightRed}    border={COLORS.borderRed}/>;
+  if (r==="Observed") return <Badge text="✓ Observed" color={COLORS.green} bg={COLORS.lightGreen} border={COLORS.borderGreen}/>;
+  if (r==="Partial") return <Badge text="~ Partial" color={COLORS.orange} bg={COLORS.lightOrange} border={COLORS.borderOrange}/>;
+  if (r==="Not observed") return <Badge text="✗ Not observed" color={COLORS.red} bg={COLORS.lightRed} border={COLORS.borderRed}/>;
   return <Badge text="Pending" color={COLORS.gray} bg={COLORS.lightGray} border={COLORS.borderGray}/>;
 };
 const frqBadge = f => f==="Weekly"?<Badge text="Weekly" color={COLORS.blue} bg={COLORS.lightBlue} border={COLORS.borderBlue}/>:f==="Daily"?<Badge text="Daily" color={COLORS.purple} bg={COLORS.lightPurple} border={COLORS.borderPurple}/>:<Badge text="Ad hoc" color={COLORS.gray} bg={COLORS.lightGray} border={COLORS.borderGray}/>;
-
 const NIU_LABEL = s => s>=8?{label:"Maximum signal",color:COLORS.blue}:s>=6?{label:"Anchored value",color:COLORS.green}:s>=4?{label:"Building value",color:COLORS.orange}:{label:"Emerging value",color:COLORS.yellow};
 
 const NIUBar = ({score}) => {
@@ -134,23 +160,14 @@ const NIUBar = ({score}) => {
   </div>;
 };
 
-// NIU legend — shared between Pulse KPI card and Value tab
-const NIULegend = () => <div style={{display:"flex",gap:20,flexWrap:"wrap",marginTop:8}}>
-  {[{r:"1–3",l:"Emerging value",c:COLORS.yellow},{r:"4–5",l:"Building value",c:COLORS.orange},{r:"6–7",l:"Anchored value",c:COLORS.green},{r:"8",l:"Maximum signal",c:COLORS.blue}].map(n=>
-    <div key={n.r} style={{display:"flex",alignItems:"center",gap:6}}>
-      <div style={{width:10,height:10,borderRadius:"50%",background:n.c}}/>
-      <span style={{fontSize:11,color:COLORS.dark}}><strong style={{color:n.c}}>{n.r}</strong> — {n.l}</span>
-    </div>
-  )}
-</div>;
-
 const Card = ({children,style}) => <div style={{background:"#fff",border:`1px solid ${COLORS.borderGray}`,borderRadius:10,padding:20,...style}}>{children}</div>;
-
-const SectionHeader = ({emoji,title,subtitle}) => <div style={{marginBottom:20}}>
-  <h2 style={{margin:0,fontSize:18,fontWeight:700,color:COLORS.dark,display:"flex",alignItems:"center",gap:8}}>
-    <span>{emoji}</span><span>{title}</span>
-  </h2>
-  {subtitle && <p style={{margin:"6px 0 0",fontSize:13,color:COLORS.gray}}>{subtitle}</p>}
+const SectionHeader = ({emoji,step,title,subtitle}) => <div style={{marginBottom:20}}>
+  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+    <span style={{fontSize:20}}>{emoji}</span>
+    <span style={{fontSize:11,fontWeight:700,color:COLORS.light,letterSpacing:1,textTransform:"uppercase"}}>Step {step}</span>
+  </div>
+  <h2 style={{margin:0,fontSize:18,fontWeight:700,color:COLORS.dark}}>{title}</h2>
+  {subtitle && <p style={{margin:"4px 0 0",fontSize:13,color:COLORS.gray}}>{subtitle}</p>}
 </div>;
 
 const STEPS = ["Pulse","Frictions","Habits","AI Tasks","Value","Pipeline"];
@@ -201,28 +218,40 @@ function Dashboard() {
   // ── KPI Cards ──
   const habitsActive = habits.filter(h=>h.decision==="Keep"||h.decision==="Adjust");
   const validated    = values.filter(v=>v.sponsor==="Validated");
-  const avgNIU       = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):0;
-  const {color:niuColor, label:niuLabel} = NIU_LABEL(parseFloat(avgNIU));
+  const avgNIU       = values.length?(values.reduce((s,v)=>s+v.niu,0)/values.length).toFixed(1):"—";
 
   // ── Value Chain — propagation de droite à gauche depuis les Values validées ──
-  const validatedValueIds  = new Set(validated.map(v=>v._id));
+  const validatedValues    = values.filter(v=>v.sponsor==="Validated");
+  const validatedValueIds  = new Set(validatedValues.map(v=>normId(v._id)));
   const aiTasksValidated   = aiTasks.filter(a=>[...a.relatedValue].some(id=>validatedValueIds.has(id)));
-  const aiTaskValidatedIds = new Set(aiTasksValidated.map(a=>a._id));
+  const aiTaskValidatedIds = new Set(aiTasksValidated.map(a=>normId(a._id)));
   const habitsValidated    = habits.filter(h=>[...h.relatedAITask].some(id=>aiTaskValidatedIds.has(id)));
-  const habitValidatedIds  = new Set(habitsValidated.map(h=>h._id));
+  const habitValidatedIds  = new Set(habitsValidated.map(h=>normId(h._id)));
   const frictionsValidated = frictions.filter(f=>[...f.relatedPDCA].some(id=>habitValidatedIds.has(id)));
+
+  // Build chain rows: one per validated Value
+  const chainRows = validatedValues.map(v => {
+    const vId = normId(v._id);
+    const linkedAITasks = aiTasks.filter(a=>a.relatedValue.has(vId));
+    // For each AI task linked to this value, find habits linked to it
+    const linkedHabits = habits.filter(h=>linkedAITasks.some(a=>h.relatedAITask.has(normId(a._id))));
+    // For each habit, find frictions linked to it
+    const linkedFrictions = frictions.filter(f=>linkedHabits.some(h=>f.relatedPDCA.has(normId(h._id))));
+    return { value:v, aiTasks:linkedAITasks, habits:linkedHabits, frictions:linkedFrictions };
+  });
 
   return <div>
     <Header/>
     <div style={{padding:"28px",maxWidth:1100,margin:"0 auto"}}>
 
       {active==="Pulse" && <div>
-        <SectionHeader emoji="📊" title="Program Pulse" subtitle="Snapshot of the value creation chain — live from Notion."/>
+        <SectionHeader emoji="📊" step="0" title="Program Pulse" subtitle="Snapshot of the value creation chain — live from Notion."/>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:28}}>
           {[
-            {label:"Frictions identified", value:frictions.length,    sub:"all entries",                color:COLORS.orange},
-            {label:"Habits active",        value:habitsActive.length, sub:"Decision: Keep or Adjust",   color:COLORS.green},
-            {label:"AI Tasks identified",  value:aiTasks.length,      sub:"all entries",                color:COLORS.blue},
+            {label:"Frictions identified", value:frictions.length,    sub:"all entries",                                    color:COLORS.orange},
+            {label:"Habits active",        value:habitsActive.length, sub:"Decision: Keep or Adjust",                       color:COLORS.green},
+            {label:"AI Tasks identified",  value:aiTasks.length,      sub:"all entries",                                    color:COLORS.blue},
+            {label:"NIU avg",              value:avgNIU+"/8",         sub:`${validated.length} validated · ${values.length} total`, color:COLORS.purple},
           ].map(kpi=>
             <Card key={kpi.label} style={{borderTop:`3px solid ${kpi.color}`}}>
               <div style={{fontSize:32,fontWeight:800,color:kpi.color,lineHeight:1}}>{kpi.value}</div>
@@ -230,42 +259,44 @@ function Dashboard() {
               <div style={{fontSize:12,color:COLORS.light,marginTop:2}}>{kpi.sub}</div>
             </Card>
           )}
-          <Card style={{borderTop:`3px solid ${niuColor}`}}>
-            <div style={{fontSize:32,fontWeight:800,color:niuColor,lineHeight:1}}>{avgNIU}/8</div>
-            <div style={{fontSize:13,fontWeight:600,color:COLORS.dark,marginTop:6}}>NIU avg</div>
-            <div style={{fontSize:12,color:niuColor,fontWeight:600,marginTop:2}}>{niuLabel}</div>
-            <div style={{marginTop:8}}><NIULegend/></div>
-          </Card>
         </div>
         <Card>
-          <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Value Chain — Program Progress</div>
-          <div style={{fontSize:11,color:COLORS.light,marginBottom:16}}>Entries traceable to a Validated Value — propagated right to left</div>
-          <div style={{display:"flex",alignItems:"stretch",gap:0}}>
-            {[
-              {label:"Frictions", count:frictions.length, done:frictionsValidated.length, color:COLORS.orange, bg:"#FFF7ED", emoji:"🔥"},
-              {label:"Habits",    count:habits.length,    done:habitsValidated.length,    color:COLORS.green,  bg:"#F0FDF4", emoji:"🔁"},
-              {label:"AI Tasks",  count:aiTasks.length,   done:aiTasksValidated.length,   color:COLORS.blue,   bg:"#EFF6FF", emoji:"🤖"},
-              {label:"Value",     count:values.length,    done:validated.length,           color:COLORS.purple, bg:"#F5F3FF", emoji:"💰"},
-            ].map((s,i)=>
-              <div key={s.label} style={{display:"flex",alignItems:"center",flex:1}}>
-                <div style={{flex:1,background:s.bg,border:`1px solid ${s.color}44`,borderRadius:8,padding:"14px 16px",textAlign:"center"}}>
-                  <div style={{fontSize:22}}>{s.emoji}</div>
-                  <div style={{fontSize:22,fontWeight:800,color:s.color}}>{s.done}</div>
-                  <div style={{fontSize:11,color:s.color,fontWeight:600}}>{s.label}</div>
-                  <div style={{fontSize:11,color:COLORS.light,marginTop:2}}>of {s.count} total</div>
-                  <div style={{marginTop:8,height:4,background:"#E5E7EB",borderRadius:2,overflow:"hidden"}}>
-                    <div style={{width:`${s.count?Math.round((s.done/s.count)*100):0}%`,height:"100%",background:s.color,borderRadius:2}}/>
+          <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Value Chain — Validated Value Paths</div>
+          <div style={{fontSize:11,color:COLORS.light,marginBottom:16}}>One row per Validated Value — traced back to originating Frictions</div>
+
+          {/* Column headers */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.4fr",gap:8,marginBottom:8,padding:"0 4px"}}>
+            {[{e:"🔥",l:"Friction",c:COLORS.orange},{e:"🔁",l:"Habit",c:COLORS.green},{e:"🤖",l:"AI Task",c:COLORS.blue},{e:"💰",l:"Value + NIU",c:COLORS.purple}].map(col=>
+              <div key={col.l} style={{fontSize:11,fontWeight:700,color:col.c,textTransform:"uppercase",letterSpacing:0.5}}>{col.e} {col.l}</div>
+            )}
+          </div>
+
+          {/* Chain rows */}
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {chainRows.map((row,i)=>{
+              const {color} = NIU_LABEL(row.value.niu);
+              const fTitle = row.frictions.length ? row.frictions.map(f=>f.title).join(", ") : "—";
+              const hTitle = row.habits.length    ? row.habits.map(h=>h.title).join(", ")    : "—";
+              const aTitle = row.aiTasks.length   ? row.aiTasks.map(a=>a.title).join(", ")   : "—";
+              return <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.4fr",gap:8,padding:"10px 12px",background:i%2===0?"#F8FAFC":"#fff",borderRadius:6,border:`1px solid ${COLORS.borderGray}`,alignItems:"center"}}>
+                <div style={{fontSize:12,color:COLORS.mid}}>{fTitle}</div>
+                <div style={{fontSize:12,color:COLORS.mid}}>{hTitle}</div>
+                <div style={{fontSize:12,color:COLORS.mid}}>{aTitle}</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,fontWeight:700,color:COLORS.dark,marginBottom:4}}>{row.value.title}</div>
+                    <NIUBar score={row.value.niu}/>
                   </div>
                 </div>
-                {i<3&&<div style={{color:COLORS.light,fontSize:20,padding:"0 6px"}}>→</div>}
-              </div>
-            )}
+              </div>;
+            })}
+            {chainRows.length===0 && <div style={{color:COLORS.light,fontSize:13,padding:"16px 0",textAlign:"center"}}>No validated values found.</div>}
           </div>
         </Card>
       </div>}
 
       {active==="Frictions" && <div>
-        <SectionHeader emoji="🔥" title="Frictions" subtitle="Execution irritants observed on the ground, addressed through Tato."/>
+        <SectionHeader emoji="🔥" step="1" title="Frictions resolved by AI" subtitle="Execution irritants observed on the ground, addressed through Tato."/>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {[...frictions].sort((a,b)=>["High","Medium","Low"].indexOf(a.severity)-["High","Medium","Low"].indexOf(b.severity)).map(f=>
             <Card key={f.id} style={{display:"flex",alignItems:"center",gap:16,padding:"14px 20px"}}>
@@ -282,7 +313,7 @@ function Dashboard() {
       </div>}
 
       {active==="Habits" && <div>
-        <SectionHeader emoji="🔁" title="Habits" subtitle="What the team actually does differently today because of Tato."/>
+        <SectionHeader emoji="🔁" step="2" title="Habits anchored" subtitle="What the team actually does differently today because of Tato."/>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {habits.map(h=>
             <Card key={h.id}>
@@ -308,7 +339,7 @@ function Dashboard() {
       </div>}
 
       {active==="AI Tasks" && <div>
-        <SectionHeader emoji="🤖" title="AI Tasks" subtitle="How work has changed — tasks where Tato is embedded in recurring execution."/>
+        <SectionHeader emoji="🤖" step="3" title="AI Tasks in regular use" subtitle="How work has changed — tasks where Tato is embedded in recurring execution."/>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {aiTasks.map(t=>
             <Card key={t.id}>
@@ -324,9 +355,13 @@ function Dashboard() {
       </div>}
 
       {active==="Value" && <div>
-        <SectionHeader emoji="💰" title="Value" subtitle="NIU Score (1–8): normalized average across relevant dimensions."/>
+        <SectionHeader emoji="💰" step="4" title="Value created" subtitle="NIU Score (1–8): normalized average across relevant dimensions."/>
         <Card style={{marginBottom:20,padding:"14px 20px"}}>
-          <NIULegend/>
+          <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
+            {[{r:"1–3",l:"Emerging value",c:COLORS.yellow},{r:"4–5",l:"Building value",c:COLORS.orange},{r:"6–7",l:"Anchored value",c:COLORS.green},{r:"8",l:"Maximum signal",c:COLORS.blue}].map(n=>
+              <div key={n.r} style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:"50%",background:n.c}}/><span style={{fontSize:12,color:COLORS.dark}}><strong style={{color:n.c}}>{n.r}</strong> — {n.l}</span></div>
+            )}
+          </div>
         </Card>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {[...values].sort((a,b)=>b.niu-a.niu).map(v=>{
@@ -360,7 +395,7 @@ function Dashboard() {
       </div>}
 
       {active==="Pipeline" && <div>
-        <SectionHeader emoji="🔮" title="Pipeline" subtitle="What the program is about to produce."/>
+        <SectionHeader emoji="🔮" step="5" title="Value pipeline" subtitle="What the program is about to produce."/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Value pending validation</div>
