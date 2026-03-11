@@ -90,6 +90,8 @@ const parseAITasks = raw => raw.map((r,i) => ({
   original: nf(r,"Original Work (As-Is)","original_work") || "—",
   contribution: nf(r,"AI Contribution","ai_contribution") || "—",
   humanRole: nf(r,"Human Role After AI","human_role_after_ai") || "—",
+  // Related Value = comma-separated Notion page IDs, non-empty means linked
+  hasValue: !!(nf(r,"Related Value","related_value")),
 }));
 
 const parseValues = raw => raw.map((r,i) => {
@@ -225,7 +227,7 @@ function Dashboard() {
         <Card>
           <div style={{fontSize:13,fontWeight:700,color:COLORS.mid,marginBottom:16,textTransform:"uppercase",letterSpacing:0.5}}>Value Chain — Program Progress</div>
           <div style={{display:"flex",alignItems:"stretch",gap:0}}>
-            {[{label:"Frictions",count:frictions.length,done:resolved.length,color:COLORS.orange,bg:"#FFF7ED",emoji:"🔥"},{label:"Habits",count:habits.length,done:anchored.length,color:COLORS.green,bg:"#F0FDF4",emoji:"🔁"},{label:"AI Tasks",count:aiTasks.length,done:recurring.length,color:COLORS.blue,bg:"#EFF6FF",emoji:"🤖"},{label:"Value",count:values.length,done:validated.length||values.length,color:COLORS.purple,bg:"#F5F3FF",emoji:"💰"}].map((s,i)=>
+            {[{label:"Frictions",count:frictions.length,done:resolved.length,color:COLORS.orange,bg:"#FFF7ED",emoji:"🔥"},{label:"Habits",count:habits.length,done:anchored.length,color:COLORS.green,bg:"#F0FDF4",emoji:"🔁"},{label:"AI Tasks",count:aiTasks.length,done:recurring.length,color:COLORS.blue,bg:"#EFF6FF",emoji:"🤖"},{label:"Value",count:values.length,done:aiTasksWithValue.length,color:COLORS.purple,bg:"#F5F3FF",emoji:"💰"}].map((s,i)=>
               <div key={s.label} style={{display:"flex",alignItems:"center",flex:1}}>
                 <div style={{flex:1,background:s.bg,border:`1px solid ${s.color}44`,borderRadius:8,padding:"14px 16px",textAlign:"center"}}>
                   <div style={{fontSize:22}}>{s.emoji}</div>
